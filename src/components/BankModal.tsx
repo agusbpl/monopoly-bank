@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Landmark, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import type { Player } from '../types/game';
 import { playCoinsSound, playTransferSound, playBuzzerSound, triggerHaptic } from '../utils/sound';
@@ -10,12 +10,12 @@ interface BankModalProps {
   onTransfer: (fromId: string, toId: string, amount: number, reason?: string) => Promise<void>;
 }
 
-export const BankModal: React.FC<BankModalProps> = ({
+export const BankModal = ({
   isOpen,
   onClose,
   currentPlayer,
   onTransfer,
-}) => {
+}: BankModalProps) => {
   const [mode, setMode] = useState<'pay_bank' | 'collect_bank'>('pay_bank');
   const [amount, setAmount] = useState<number>(50);
   const [reason, setReason] = useState<string>('');
@@ -23,21 +23,23 @@ export const BankModal: React.FC<BankModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Accesos rápidos según tablero oficial España
   const quickPayRules = [
-    { label: 'Cárcel ($50)', amount: 50, reason: 'Fianza para salir de la cárcel' },
-    { label: 'Impuesto de Lujo ($75)', amount: 75, reason: 'Impuesto de lujo' },
-    { label: 'Impuesto Capital ($100)', amount: 100, reason: 'Impuesto sobre el capital' },
-    { label: 'Comprar Casa ($50)', amount: 50, reason: 'Compra de 1 casa' },
-    { label: 'Comprar Casa ($100)', amount: 100, reason: 'Compra de 1 casa' },
-    { label: 'Comprar Hotel ($200)', amount: 200, reason: 'Compra de hotel' },
+    { label: 'Fianza Cárcel (50 €)', amount: 50, reason: 'Fianza para salir de la cárcel' },
+    { label: 'Impuesto de Lujo (100 €)', amount: 100, reason: 'Impuesto de Lujo' },
+    { label: 'Impuesto Capital (200 €)', amount: 200, reason: 'Impuesto sobre el Capital' },
+    { label: 'Casa Marrón/Celeste (50 €)', amount: 50, reason: 'Compra de 1 casa' },
+    { label: 'Casa Rosa/Naranja (100 €)', amount: 100, reason: 'Compra de 1 casa' },
+    { label: 'Casa Rojo/Amarillo (150 €)', amount: 150, reason: 'Compra de 1 casa' },
+    { label: 'Casa Verde/Azul (200 €)', amount: 200, reason: 'Compra de 1 casa' },
   ];
 
   const quickCollectRules = [
-    { label: 'Premio Belleza ($10)', amount: 10, reason: 'Segundo premio en concurso de belleza' },
-    { label: 'Devolución Impuestos ($20)', amount: 20, reason: 'Devolución de impuestos' },
-    { label: 'Error Banca ($200)', amount: 200, reason: 'Error de la banca a tu favor' },
-    { label: 'Cobrar Hipoteca ($100)', amount: 100, reason: 'Cobro por hipoteca de propiedad' },
-    { label: 'Cobro Salida ($200)', amount: 200, reason: 'Paso por la Salida' },
+    { label: 'Cobro Salida (200 €)', amount: 200, reason: 'Paso por la Salida' },
+    { label: 'Premio Belleza (10 €)', amount: 10, reason: 'Premio de belleza (Caja Comunidad)' },
+    { label: 'Devolución Hacienda (20 €)', amount: 20, reason: 'Devolución de impuestos' },
+    { label: 'Error Banca (200 €)', amount: 200, reason: 'Error de la banca a tu favor' },
+    { label: 'Cobro Hipoteca (100 €)', amount: 100, reason: 'Cobro por hipoteca de estación' },
   ];
 
   const handleSubmit = async () => {
@@ -50,7 +52,7 @@ export const BankModal: React.FC<BankModalProps> = ({
     if (mode === 'pay_bank' && currentPlayer.balance < amount) {
       playBuzzerSound();
       triggerHaptic('warning');
-      alert(`Saldo insuficiente. Tenés $${currentPlayer.balance}`);
+      alert(`Saldo insuficiente. Tenés ${currentPlayer.balance} €`);
       return;
     }
 
@@ -139,12 +141,12 @@ export const BankModal: React.FC<BankModalProps> = ({
             <label className="text-xs font-semibold text-slate-300 flex justify-between">
               <span>{mode === 'pay_bank' ? 'Monto a pagar:' : 'Monto a cobrar:'}</span>
               <span className="text-slate-400">
-                Tu saldo: <b className="text-emerald-400 font-mono">${currentPlayer.balance}</b>
+                Tu saldo: <b className="text-emerald-400 font-mono">{currentPlayer.balance} €</b>
               </span>
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-500">
-                $
+                €
               </span>
               <input
                 type="number"
@@ -160,7 +162,7 @@ export const BankModal: React.FC<BankModalProps> = ({
           {/* Preset rules chips */}
           <div className="space-y-2">
             <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Accesos rápidos Monopoly:
+              Accesos rápidos Monopoly España:
             </label>
             <div className="grid grid-cols-2 gap-2">
               {(mode === 'pay_bank' ? quickPayRules : quickCollectRules).map((item) => (
@@ -191,7 +193,7 @@ export const BankModal: React.FC<BankModalProps> = ({
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Ej. Compra de Ferrocarril, Suerte..."
+              placeholder="Ej. Compra de Estación, Suerte..."
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
             />
           </div>
@@ -211,12 +213,12 @@ export const BankModal: React.FC<BankModalProps> = ({
               <span>Procesando...</span>
             ) : mode === 'pay_bank' ? (
               <>
-                <span>Pagar ${amount} al Banco</span>
+                <span>Pagar {amount} € al Banco</span>
                 <ArrowUpRight className="w-5 h-5" />
               </>
             ) : (
               <>
-                <span>Cobrar ${amount} del Banco</span>
+                <span>Cobrar {amount} € del Banco</span>
                 <ArrowDownLeft className="w-5 h-5" />
               </>
             )}

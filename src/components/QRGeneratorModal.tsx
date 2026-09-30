@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { X, QrCode, DollarSign, Check, Copy } from 'lucide-react';
 import type { Game, Player, QRPayload } from '../types/game';
@@ -10,12 +10,12 @@ interface QRGeneratorModalProps {
   currentPlayer: Player;
 }
 
-export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
+export const QRGeneratorModal = ({
   isOpen,
   onClose,
   game,
   currentPlayer,
-}) => {
+}: QRGeneratorModalProps) => {
   const [requestedAmount, setRequestedAmount] = useState<number | ''>('');
   const [reason, setReason] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -71,7 +71,7 @@ export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/80 border border-slate-700 rounded-full">
             <span className="text-2xl">{currentPlayer.token}</span>
             <span className="font-bold text-sm text-white">{currentPlayer.name}</span>
-            <span className="text-xs text-emerald-400 font-mono">(${currentPlayer.balance})</span>
+            <span className="text-xs text-emerald-400 font-mono">({currentPlayer.balance} €)</span>
           </div>
 
           {/* QR Code Presentation Box */}
@@ -91,7 +91,7 @@ export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
               <p className="text-xs text-emerald-300 font-medium">
                 Cobro configurado por:{' '}
                 <b className="text-xl font-mono text-emerald-400 font-bold block mt-0.5">
-                  ${requestedAmount}
+                  {requestedAmount} €
                 </b>
                 {reason && <span className="text-[11px] text-slate-300 italic">"{reason}"</span>}
               </p>
@@ -125,7 +125,7 @@ export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
 
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-500">
-                $
+                €
               </span>
               <input
                 type="number"
@@ -152,7 +152,7 @@ export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
                       : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }`}
                 >
-                  ${q}
+                  {q} €
                 </button>
               ))}
             </div>
@@ -166,7 +166,7 @@ export const QRGeneratorModal: React.FC<QRGeneratorModalProps> = ({
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Ej. Alquiler de Casitas..."
+                placeholder="Ej. Alquiler de Paseo del Prado..."
                 className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
               />
             </div>

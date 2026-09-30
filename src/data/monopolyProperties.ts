@@ -20,14 +20,15 @@ export interface PropertyDefinition {
   mortgageValue: number;
   houseCost: number; // 0 for railroad and utility
   baseRent: number;
-  rentWithHouses: number[]; // [1 house, 2 houses, 3 houses, 4 houses, hotel]
+  rentWithHouses: number[]; // [1 casa, 2 casas, 3 casas, 4 casas, hotel]
 }
 
+// Propiedades de la edición oficial Monopoly España (Madrid)
 export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
-  // --- MARRÓN (BROWN) ---
+  // --- MARRÓN ---
   {
-    id: 'mediterranean_ave',
-    name: 'Av. Mediterráneo',
+    id: 'ronda_de_valencia',
+    name: 'Ronda de Valencia',
     group: 'brown',
     groupName: 'Marrón',
     groupColor: '#92400e',
@@ -38,8 +39,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [10, 30, 90, 160, 250],
   },
   {
-    id: 'baltic_ave',
-    name: 'Av. Báltica',
+    id: 'plaza_lavapies',
+    name: 'Plaza Lavapiés',
     group: 'brown',
     groupName: 'Marrón',
     groupColor: '#92400e',
@@ -50,10 +51,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [20, 60, 180, 320, 450],
   },
 
-  // --- CELESTE (LIGHT BLUE) ---
+  // --- CELESTE ---
   {
-    id: 'oriental_ave',
-    name: 'Av. Oriental',
+    id: 'glorieta_cuatro_caminos',
+    name: 'Glorieta Cuatro Caminos',
     group: 'light_blue',
     groupName: 'Celeste',
     groupColor: '#38bdf8',
@@ -64,8 +65,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [30, 90, 270, 400, 550],
   },
   {
-    id: 'vermont_ave',
-    name: 'Av. Vermont',
+    id: 'avenida_reina_victoria',
+    name: 'Avenida Reina Victoria',
     group: 'light_blue',
     groupName: 'Celeste',
     groupColor: '#38bdf8',
@@ -76,8 +77,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [30, 90, 270, 400, 550],
   },
   {
-    id: 'connecticut_ave',
-    name: 'Av. Connecticut',
+    id: 'calle_bravo_murillo',
+    name: 'Calle Bravo Murillo',
     group: 'light_blue',
     groupName: 'Celeste',
     groupColor: '#38bdf8',
@@ -88,10 +89,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [40, 100, 300, 450, 600],
   },
 
-  // --- ROSA (PINK) ---
+  // --- ROSA ---
   {
-    id: 'st_charles_place',
-    name: 'Plaza San Carlos',
+    id: 'glorieta_de_bilbao',
+    name: 'Glorieta de Bilbao',
     group: 'pink',
     groupName: 'Rosa',
     groupColor: '#ec4899',
@@ -102,8 +103,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [50, 150, 450, 625, 750],
   },
   {
-    id: 'states_ave',
-    name: 'Av. de los Estados',
+    id: 'calle_alberto_aguilera',
+    name: 'Calle Alberto Aguilera',
     group: 'pink',
     groupName: 'Rosa',
     groupColor: '#ec4899',
@@ -114,8 +115,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [50, 150, 450, 625, 750],
   },
   {
-    id: 'virginia_ave',
-    name: 'Av. Virginia',
+    id: 'calle_fuencarral',
+    name: 'Calle Fuencarral',
     group: 'pink',
     groupName: 'Rosa',
     groupColor: '#ec4899',
@@ -126,10 +127,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [60, 180, 500, 700, 900],
   },
 
-  // --- NARANJA (ORANGE) ---
+  // --- NARANJA ---
   {
-    id: 'st_james_place',
-    name: 'Plaza San Jaime',
+    id: 'avenida_felipe_ii',
+    name: 'Avenida Felipe II',
     group: 'orange',
     groupName: 'Naranja',
     groupColor: '#f97316',
@@ -140,8 +141,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [70, 200, 550, 750, 950],
   },
   {
-    id: 'tennessee_ave',
-    name: 'Av. Tennessee',
+    id: 'calle_velazquez',
+    name: 'Calle Velázquez',
     group: 'orange',
     groupName: 'Naranja',
     groupColor: '#f97316',
@@ -152,8 +153,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [70, 200, 550, 750, 950],
   },
   {
-    id: 'new_york_ave',
-    name: 'Av. Nueva York',
+    id: 'calle_serrano',
+    name: 'Calle Serrano',
     group: 'orange',
     groupName: 'Naranja',
     groupColor: '#f97316',
@@ -164,10 +165,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [80, 220, 600, 800, 1000],
   },
 
-  // --- ROJO (RED) ---
+  // --- ROJO ---
   {
-    id: 'kentucky_ave',
-    name: 'Av. Kentucky',
+    id: 'avenida_de_america',
+    name: 'Avenida de América',
     group: 'red',
     groupName: 'Rojo',
     groupColor: '#ef4444',
@@ -178,8 +179,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [90, 250, 700, 875, 1050],
   },
   {
-    id: 'indiana_ave',
-    name: 'Av. Indiana',
+    id: 'calle_maria_de_molina',
+    name: 'Calle María de Molina',
     group: 'red',
     groupName: 'Rojo',
     groupColor: '#ef4444',
@@ -190,8 +191,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [90, 250, 700, 875, 1050],
   },
   {
-    id: 'illinois_ave',
-    name: 'Av. Illinois',
+    id: 'calle_cea_bermudez',
+    name: 'Calle Cea Bermúdez',
     group: 'red',
     groupName: 'Rojo',
     groupColor: '#ef4444',
@@ -202,10 +203,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [100, 300, 750, 925, 1100],
   },
 
-  // --- AMARILLO (YELLOW) ---
+  // --- AMARILLO ---
   {
-    id: 'atlantic_ave',
-    name: 'Av. Atlántico',
+    id: 'avenida_reyes_catolicos',
+    name: 'Avenida de los Reyes Católicos',
     group: 'yellow',
     groupName: 'Amarillo',
     groupColor: '#eab308',
@@ -216,8 +217,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [110, 330, 800, 975, 1150],
   },
   {
-    id: 'ventnor_ave',
-    name: 'Av. Ventnor',
+    id: 'calle_bailen',
+    name: 'Calle Bailén',
     group: 'yellow',
     groupName: 'Amarillo',
     groupColor: '#eab308',
@@ -228,8 +229,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [110, 330, 800, 975, 1150],
   },
   {
-    id: 'marvin_gardens',
-    name: 'Jardines Marvin',
+    id: 'plaza_de_espana',
+    name: 'Plaza de España',
     group: 'yellow',
     groupName: 'Amarillo',
     groupColor: '#eab308',
@@ -240,10 +241,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [120, 360, 850, 1025, 1200],
   },
 
-  // --- VERDE (GREEN) ---
+  // --- VERDE ---
   {
-    id: 'pacific_ave',
-    name: 'Av. Pacífico',
+    id: 'puerta_del_sol',
+    name: 'Puerta del Sol',
     group: 'green',
     groupName: 'Verde',
     groupColor: '#22c55e',
@@ -254,8 +255,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [130, 390, 900, 1100, 1275],
   },
   {
-    id: 'north_carolina_ave',
-    name: 'Av. Carolina del Norte',
+    id: 'calle_alcala',
+    name: 'Calle Alcalá',
     group: 'green',
     groupName: 'Verde',
     groupColor: '#22c55e',
@@ -266,8 +267,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [130, 390, 900, 1100, 1275],
   },
   {
-    id: 'pennsylvania_ave',
-    name: 'Av. Pensilvania',
+    id: 'gran_via',
+    name: 'Gran Vía',
     group: 'green',
     groupName: 'Verde',
     groupColor: '#22c55e',
@@ -278,10 +279,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [150, 450, 1000, 1200, 1400],
   },
 
-  // --- AZUL OSCURO (DARK BLUE) ---
+  // --- AZUL OSCURO ---
   {
-    id: 'park_place',
-    name: 'Plaza Park / El Muelle',
+    id: 'paseo_de_la_castellana',
+    name: 'Paseo de la Castellana',
     group: 'dark_blue',
     groupName: 'Azul Oscuro',
     groupColor: '#1d4ed8',
@@ -292,8 +293,8 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [175, 500, 1100, 1300, 1500],
   },
   {
-    id: 'boardwalk',
-    name: 'Paseo Tablado / Prado',
+    id: 'paseo_del_prado',
+    name: 'Paseo del Prado',
     group: 'dark_blue',
     groupName: 'Azul Oscuro',
     groupColor: '#1d4ed8',
@@ -304,10 +305,10 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [200, 600, 1400, 1700, 2000],
   },
 
-  // --- FERROCARRILES / ESTACIONES ---
+  // --- ESTACIONES DE FERROCARRIL (200 € cada una) ---
   {
-    id: 'reading_railroad',
-    name: 'Ferrocarril Reading',
+    id: 'estacion_de_goya',
+    name: 'Estación de Goya',
     group: 'railroad',
     groupName: 'Estaciones',
     groupColor: '#64748b',
@@ -315,23 +316,11 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     mortgageValue: 100,
     houseCost: 0,
     baseRent: 25,
-    rentWithHouses: [25, 50, 100, 200, 200], // 1 RR = 25, 2 RR = 50, 3 RR = 100, 4 RR = 200
+    rentWithHouses: [25, 50, 100, 200, 200], // 1 Estación = 25€, 2 = 50€, 3 = 100€, 4 = 200€
   },
   {
-    id: 'pennsylvania_railroad',
-    name: 'Ferrocarril Pensilvania',
-    group: 'railroad',
-    groupName: 'Estaciones',
-    groupColor: '#64748b',
-    price: 200,
-    mortgageValue: 100,
-    houseCost: 0,
-    baseRent: 25,
-    rentWithHouses: [25, 50, 100, 200, 200],
-  },
-  {
-    id: 'bo_railroad',
-    name: 'Ferrocarril B. & O.',
+    id: 'estacion_de_las_delicias',
+    name: 'Estación de las Delicias',
     group: 'railroad',
     groupName: 'Estaciones',
     groupColor: '#64748b',
@@ -342,8 +331,20 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [25, 50, 100, 200, 200],
   },
   {
-    id: 'short_line',
-    name: 'Ferrocarril Vía Rápida',
+    id: 'estacion_del_mediodia',
+    name: 'Estación del Mediodía',
+    group: 'railroad',
+    groupName: 'Estaciones',
+    groupColor: '#64748b',
+    price: 200,
+    mortgageValue: 100,
+    houseCost: 0,
+    baseRent: 25,
+    rentWithHouses: [25, 50, 100, 200, 200],
+  },
+  {
+    id: 'estacion_del_norte',
+    name: 'Estación del Norte',
     group: 'railroad',
     groupName: 'Estaciones',
     groupColor: '#64748b',
@@ -354,9 +355,9 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     rentWithHouses: [25, 50, 100, 200, 200],
   },
 
-  // --- SERVICIOS PÚBLICOS ---
+  // --- SERVICIOS PÚBLICOS (150 € cada uno) ---
   {
-    id: 'electric_company',
+    id: 'compania_de_electricidad',
     name: 'Compañía de Electricidad',
     group: 'utility',
     groupName: 'Servicios',
@@ -364,12 +365,12 @@ export const MONOPOLY_PROPERTIES: PropertyDefinition[] = [
     price: 150,
     mortgageValue: 75,
     houseCost: 0,
-    baseRent: 28, // 4x tirada de dados típica (7) = 28
-    rentWithHouses: [28, 70, 70, 70, 70], // 1 utility = 4x dice, 2 utilities = 10x dice
+    baseRent: 28, // 4x dados (promedio 7 = 28€)
+    rentWithHouses: [28, 70, 70, 70, 70], // 1 servicio = 4x dados, 2 servicios = 10x dados
   },
   {
-    id: 'water_works',
-    name: 'Servicio de Agua',
+    id: 'compania_de_aguas',
+    name: 'Compañía de Aguas',
     group: 'utility',
     groupName: 'Servicios',
     groupColor: '#059669',
@@ -408,12 +409,11 @@ export function calculateRent(
   const state = propertiesState[propertyId];
   if (!prop || !state || !state.ownerId || state.isMortgaged) return 0;
 
-  // 1. Railroads
+  // 1. Railroads / Estaciones
   if (prop.group === 'railroad') {
     const ownedRRs = MONOPOLY_PROPERTIES.filter(
       (p) => p.group === 'railroad' && propertiesState[p.id]?.ownerId === state.ownerId
     ).length;
-    // 1 RR = $25, 2 RR = $50, 3 RR = $100, 4 RR = $200
     if (ownedRRs === 1) return 25;
     if (ownedRRs === 2) return 50;
     if (ownedRRs === 3) return 100;
@@ -421,12 +421,11 @@ export function calculateRent(
     return 25;
   }
 
-  // 2. Utilities
+  // 2. Utilities / Servicios
   if (prop.group === 'utility') {
     const ownedUtils = MONOPOLY_PROPERTIES.filter(
       (p) => p.group === 'utility' && propertiesState[p.id]?.ownerId === state.ownerId
     ).length;
-    // 1 Utility = 4x dice, 2 Utilities = 10x dice
     return ownedUtils === 2 ? diceRoll * 10 : diceRoll * 4;
   }
 

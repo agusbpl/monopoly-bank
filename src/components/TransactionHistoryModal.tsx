@@ -139,7 +139,7 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
                           : 'text-amber-400'
                       }`}
                     >
-                      {isMineReceiver ? '+' : isMineSender ? '-' : ''}${tx.amount}
+                      {isMineReceiver ? '+' : isMineSender ? '-' : ''}{tx.amount} €
                     </span>
                   </div>
                 </div>

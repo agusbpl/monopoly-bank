@@ -87,7 +87,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
             Saldo Disponible
           </span>
           <div className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-slate-950">
-            ${currentPlayer.balance.toLocaleString()}
+            {currentPlayer.balance.toLocaleString()} €
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
             className="w-full py-3 px-4 bg-black text-amber-400 hover:bg-slate-900 active:scale-[0.98] font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
           >
             <Sparkles className="w-4 h-4 text-yellow-300" />
-            <span>Paso por la Salida (+ ${game.passGoAmount})</span>
+            <span>Paso por la Salida (+ {game.passGoAmount} €)</span>
           </button>
         </div>
       </div>
@@ -135,7 +135,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
         </button>
       </div>
 
-      {/* NEW: Property Market / Portfolio Button */}
+      {/* Property Market / Portfolio Button */}
       <button
         type="button"
         onClick={onOpenProperties}
@@ -147,7 +147,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
           </div>
           <div className="text-left">
             <div className="flex items-center gap-2">
-              <h4 className="font-black text-sm text-white">Mercado de Propiedades</h4>
+              <h4 className="font-black text-sm text-white">Propiedades de España</h4>
               <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-lg">
                 {myProperties.length} en tu poder
               </span>
@@ -173,7 +173,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
           <div className="text-left">
             <h4 className="font-bold text-xs text-white">Operaciones con el Banco</h4>
             <p className="text-[11px] text-slate-400">
-              Pagar cárcel, impuestos o cobrar del banco
+              Pagar fianza, impuestos de lujo/capital o cobrar
             </p>
           </div>
         </div>
@@ -207,7 +207,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
                 <div className="overflow-hidden">
                   <p className="font-bold text-xs text-white truncate">{player.name}</p>
                   <p className="text-xs font-mono font-semibold text-emerald-400">
-                    ${player.balance.toLocaleString()}
+                    {player.balance.toLocaleString()} €
                   </p>
                 </div>
               </button>
@@ -250,7 +250,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
                   )}
                 </div>
                 <span className="font-mono font-bold text-amber-400 shrink-0 ml-2">
-                  ${tx.amount}
+                  {tx.amount} €
                 </span>
               </div>
             ))}

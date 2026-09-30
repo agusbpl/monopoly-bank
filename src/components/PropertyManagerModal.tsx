@@ -111,7 +111,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
 
     if (currentPlayer.balance < agreedPrice) {
       playBuzzerSound();
-      alert(`Saldo insuficiente. Tenés $${currentPlayer.balance}`);
+      alert(`Saldo insuficiente. Tenés ${currentPlayer.balance} €`);
       return;
     }
 
@@ -157,7 +157,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
               <h3 className="font-bold text-white text-base">Propiedades y Alquileres</h3>
               <p className="text-xs text-slate-400">
                 Tu saldo:{' '}
-                <b className="text-emerald-400 font-mono font-bold">${currentPlayer.balance}</b>
+                <b className="text-emerald-400 font-mono font-bold">{currentPlayer.balance} €</b>
               </p>
             </div>
           </div>
@@ -221,7 +221,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar propiedad..."
+                placeholder="Buscar propiedad de España..."
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
               />
             </div>
@@ -299,7 +299,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                           )}
                         </div>
                         <span className="text-[10px] text-slate-400 font-semibold">
-                          {prop.groupName} • Precio: ${prop.price}
+                          {prop.groupName} • Precio: {prop.price} €
                         </span>
                       </div>
 
@@ -335,7 +335,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                             state.isMortgaged ? 'text-red-400 line-through' : 'text-emerald-400'
                           }`}
                         >
-                          {state.isMortgaged ? '$0 (Hipotecada)' : `$${currentRent}`}
+                          {state.isMortgaged ? '0 € (Hipotecada)' : `${currentRent} €`}
                         </span>
                         {hasMonopoly && state.houses === 0 && (
                           <span className="text-[9px] text-amber-300 block font-semibold">
@@ -378,7 +378,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                           className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
                         >
                           <Coins className="w-3.5 h-3.5" />
-                          <span>Comprar al Banco por ${prop.price}</span>
+                          <span>Comprar al Banco por {prop.price} €</span>
                         </button>
                       )}
 
@@ -409,8 +409,8 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                                   <Plus className="w-3.5 h-3.5 text-emerald-400" />
                                   <span>
                                     {state.houses === 4
-                                      ? `Hotel ($${prop.houseCost})`
-                                      : `Casa ($${prop.houseCost})`}
+                                      ? `Hotel (${prop.houseCost} €)`
+                                      : `Casa (${prop.houseCost} €)`}
                                   </span>
                                 </button>
 
@@ -421,7 +421,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                                   className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
                                 >
                                   <Minus className="w-3.5 h-3.5 text-red-400" />
-                                  <span>Vender ({Math.floor(prop.houseCost / 2)})</span>
+                                  <span>Vender ({Math.floor(prop.houseCost / 2)} €)</span>
                                 </button>
                               </>
                             )}
@@ -435,7 +435,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                                 className="py-1.5 px-2 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 disabled:opacity-40 text-red-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
                               >
                                 <Landmark className="w-3.5 h-3.5 text-red-400" />
-                                <span>Hipotecar (+${prop.mortgageValue})</span>
+                                <span>Hipotecar (+{prop.mortgageValue} €)</span>
                               </button>
                             ) : (
                               <button
@@ -449,7 +449,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                               >
                                 <Check className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>
-                                  Deshipotecar (-${Math.round(prop.mortgageValue * 1.1)})
+                                  Deshipotecar (-{Math.round(prop.mortgageValue * 1.1)} €)
                                 </span>
                               </button>
                             )}
@@ -483,7 +483,7 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                             className="py-2 px-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
                           >
                             <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Pagar Alquiler (${currentRent})</span>
+                            <span>Pagar Alquiler ({currentRent} €)</span>
                           </button>
 
                           <button
@@ -527,12 +527,12 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                 <label className="text-xs font-semibold text-slate-300 flex justify-between">
                   <span>Precio de compra acordado:</span>
                   <span className="text-slate-400">
-                    Tu saldo: <b className="text-emerald-400 font-mono">${currentPlayer.balance}</b>
+                    Tu saldo: <b className="text-emerald-400 font-mono">{currentPlayer.balance} €</b>
                   </span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-500">
-                    $
+                    €
                   </span>
                   <input
                     type="number"

@@ -238,7 +238,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameJoined, onOpenGuide }) => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Dinero Inicial:</label>
+                    <label className="text-[11px] font-semibold text-slate-400">Dinero Inicial (€):</label>
                     <input
                       type="number"
                       value={initialBalance}
@@ -247,7 +247,7 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameJoined, onOpenGuide }) => {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-400">Premio Salida:</label>
+                    <label className="text-[11px] font-semibold text-slate-400">Premio Salida (€):</label>
                     <input
                       type="number"
                       value={passGoAmount}

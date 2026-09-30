@@ -143,7 +143,7 @@ export const QRScannerModal = ({
     if (currentPlayer.balance < amount) {
       playBuzzerSound();
       triggerHaptic('warning');
-      alert(`Saldo insuficiente. Tenés $${currentPlayer.balance}`);
+      alert(`Saldo insuficiente. Tenés ${currentPlayer.balance} €`);
       return;
     }
 
@@ -236,7 +236,7 @@ export const QRScannerModal = ({
                         <span className="text-2xl">{p.token}</span>
                         <div className="overflow-hidden">
                           <p className="font-semibold text-xs text-white truncate">{p.name}</p>
-                          <p className="text-[10px] text-emerald-400 font-mono">${p.balance}</p>
+                          <p className="text-[10px] text-emerald-400 font-mono">{p.balance} €</p>
                         </div>
                       </button>
                     ))}
@@ -262,7 +262,7 @@ export const QRScannerModal = ({
                       {targetPlayer.name}
                     </h4>
                     <p className="text-xs text-slate-400 font-mono">
-                      Saldo actual: ${targetPlayer.balance}
+                      Saldo actual: {targetPlayer.balance} €
                     </p>
                   </div>
                 </div>
@@ -283,12 +283,12 @@ export const QRScannerModal = ({
                 <label className="text-xs font-semibold text-slate-300 flex justify-between">
                   <span>Monto a transferir:</span>
                   <span className="text-slate-400">
-                    Tu saldo: <b className="text-emerald-400 font-mono">${currentPlayer.balance}</b>
+                    Tu saldo: <b className="text-emerald-400 font-mono">{currentPlayer.balance} €</b>
                   </span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-500">
-                    $
+                    €
                   </span>
                   <input
                     type="number"
@@ -314,7 +314,7 @@ export const QRScannerModal = ({
                           : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       }`}
                     >
-                      ${q}
+                      {q} €
                     </button>
                   ))}
                   <button
@@ -336,7 +336,7 @@ export const QRScannerModal = ({
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Ej. Alquiler de Paseo del Prado, compra..."
+                  placeholder="Ej. Alquiler de Paseo del Prado, compra de calle..."
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -352,7 +352,7 @@ export const QRScannerModal = ({
                   <span>Procesando...</span>
                 ) : (
                   <>
-                    <span>Pagar ${amount} a {targetPlayer.name}</span>
+                    <span>Pagar {amount} € a {targetPlayer.name}</span>
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
