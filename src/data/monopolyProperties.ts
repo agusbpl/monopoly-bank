@@ -1,3 +1,5 @@
+import type { Player, PropertyState } from '../types/game';
+
 export type PropertyGroup =
   | 'brown'
   | 'light_blue'
@@ -401,7 +403,7 @@ export function calculateRent(
   propertyId: string,
   propertiesState: Record<
     string,
-    { ownerId: string | null; houses: number; isMortgaged: boolean }
+    { ownerId: string | null; houses: number; isMortgaged: boolean } | PropertyState
   >,
   diceRoll = 7
 ): number {
@@ -439,3 +441,161 @@ export function calculateRent(
   const hasMonopoly = ownsCompleteGroup(propertiesState, state.ownerId, prop.group);
   return hasMonopoly ? prop.baseRent * 2 : prop.baseRent;
 }
+
+/**
+ * Valida si un jugador puede construir una casa/hotel en una propiedad según las reglas oficiales de Monopoly:
+ * 1. La propiedad debe existir y ser una calle (houseCost > 0).
+ * 2. El jugador debe poseer el grupo de color completo (ownsCompleteGroup).
+ * 3. Ninguna de las propiedades del grupo puede estar hipotecada (isMortgaged).
+ * 4. La propiedad debe tener menos de 5 casas (5 = Hotel).
+ * 5. El jugador debe tener saldo suficiente para el costo de construcción (prop.houseCost).
+ * 6. Regla oficial de edificación uniforme (Even Building Rule): El número actual de casas de la
+ *    propiedad destino no puede superar el mínimo de cualquier propiedad en el mismo grupo de color.
+ */
+export function canBuildHouse(
+  propertyId: string,
+  propertiesState: Record<string, PropertyState>,
+  playerBalance: number
+): { allowed: boolean; reason?: string } {
+  const prop = PROPERTY_MAP.get(propertyId);
+  if (!prop) {
+    return { allowed: false, reason: 'Propiedad no encontrada' };
+  }
+
+  // 1. Validar que sea calle con costo de construcción
+  if (prop.houseCost <= 0) {
+    return { allowed: false, reason: 'No se pueden construir casas en estaciones o servicios' };
+  }
+
+  const state = propertiesState[propertyId];
+  if (!state || !state.ownerId) {
+    return { allowed: false, reason: 'La propiedad no tiene dueño' };
+  }
+
+  // 2. Validar posesión de grupo completo
+  if (!ownsCompleteGroup(propertiesState, state.ownerId, prop.group)) {
+    return {
+      allowed: false,
+      reason: 'Debes poseer todas las propiedades del grupo de color para construir',
+    };
+  }
+
+  const groupProps = MONOPOLY_PROPERTIES.filter((p) => p.group === prop.group);
+
+  // 3. Validar que ninguna propiedad del grupo esté hipotecada
+  const hasMortgaged = groupProps.some((p) => propertiesState[p.id]?.isMortgaged);
+  if (hasMortgaged) {
+    return {
+      allowed: false,
+      reason: 'No se puede construir si alguna propiedad del grupo de color está hipotecada',
+    };
+  }
+
+  // 4. Validar que no haya alcanzado el máximo (hotel = 5)
+  const currentHouses = state.houses ?? 0;
+  if (currentHouses >= 5) {
+    return { allowed: false, reason: 'Esta propiedad ya cuenta con un Hotel (nivel máximo)' };
+  }
+
+  // 5. Validar saldo suficiente
+  if (playerBalance < prop.houseCost) {
+    return {
+      allowed: false,
+      reason: `Saldo insuficiente (${playerBalance} €). Se necesitan ${prop.houseCost} €`,
+    };
+  }
+
+  // 6. Regla oficial de edificación uniforme (Even Building Rule):
+  // La propiedad destino no puede superar el mínimo de casas de cualquier propiedad en el grupo.
+  const minHousesInGroup = Math.min(
+    ...groupProps.map((p) => propertiesState[p.id]?.houses ?? 0)
+  );
+  if (currentHouses > minHousesInGroup) {
+    return {
+      allowed: false,
+      reason: 'Regla de edificación uniforme: debes construir de forma pareja en todo el grupo',
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Valida si un jugador puede vender una casa/hotel al banco según las reglas oficiales de Monopoly:
+ * 1. La propiedad debe existir y ser una calle con casas (houses > 0).
+ * 2. Regla oficial de venta uniforme (Even Breakdown Rule): El número actual de casas de la
+ *    propiedad destino no puede ser menor que el máximo de cualquier propiedad en el mismo grupo.
+ */
+export function canSellHouse(
+  propertyId: string,
+  propertiesState: Record<string, PropertyState>
+): { allowed: boolean; reason?: string } {
+  const prop = PROPERTY_MAP.get(propertyId);
+  if (!prop) {
+    return { allowed: false, reason: 'Propiedad no encontrada' };
+  }
+
+  if (prop.houseCost <= 0) {
+    return { allowed: false, reason: 'No se pueden vender construcciones en estaciones o servicios' };
+  }
+
+  const state = propertiesState[propertyId];
+  if (!state || !state.ownerId) {
+    return { allowed: false, reason: 'La propiedad no tiene dueño' };
+  }
+
+  // 1. Validar que tenga construcciones para vender
+  const currentHouses = state.houses ?? 0;
+  if (currentHouses <= 0) {
+    return { allowed: false, reason: 'No hay construcciones para vender en esta propiedad' };
+  }
+
+  // 2. Regla oficial de venta uniforme (Even Breakdown Rule):
+  // La propiedad destino no puede tener menos casas que el máximo del grupo.
+  const groupProps = MONOPOLY_PROPERTIES.filter((p) => p.group === prop.group);
+  const maxHousesInGroup = Math.max(
+    ...groupProps.map((p) => propertiesState[p.id]?.houses ?? 0)
+  );
+
+  if (currentHouses < maxHousesInGroup) {
+    return {
+      allowed: false,
+      reason: 'Regla de venta uniforme: debes vender primero en las propiedades que tengan más construcciones',
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Calcula el patrimonio neto (Net Worth) total de un jugador según las reglas oficiales de Monopoly:
+ * - Saldo en efectivo (player.balance).
+ * - Para cada propiedad del jugador:
+ *   - Si no está hipotecada: + precio de compra original (prop.price).
+ *   - Si está hipotecada: + valor de hipoteca (prop.mortgageValue).
+ *   - Por cada construcción: + (houses * prop.houseCost).
+ */
+export function calculateNetWorth(
+  player: Player,
+  propertiesState: Record<string, PropertyState>
+): number {
+  let netWorth = player.balance;
+
+  for (const prop of MONOPOLY_PROPERTIES) {
+    const state = propertiesState[prop.id];
+    if (state && state.ownerId === player.id) {
+      if (state.isMortgaged) {
+        netWorth += prop.mortgageValue;
+      } else {
+        netWorth += prop.price;
+      }
+
+      if (prop.houseCost > 0 && state.houses > 0) {
+        netWorth += state.houses * prop.houseCost;
+      }
+    }
+  }
+
+  return netWorth;
+}
+

@@ -17,6 +17,7 @@ export interface Transaction {
   toName: string;
   amount: number;
   reason?: string;
+  diceRoll?: number;
   timestamp: number;
 }
 
@@ -36,6 +37,7 @@ export interface Game {
   players: Record<string, Player>;
   properties: Record<string, PropertyState>;
   transactions: Transaction[];
+  version?: number;
 }
 
 export interface QRPayload {

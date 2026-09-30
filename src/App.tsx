@@ -200,9 +200,29 @@ export function App() {
     }
   };
 
-  const handlePayRent = async (ownerId: string, amount: number, propertyName: string) => {
+  const handlePayRent = async (
+    ownerId: string,
+    amount: number,
+    propertyName: string,
+    diceRoll?: number
+  ) => {
     if (!game || !currentPlayer) return;
-    await handleTransfer(ownerId, amount, `Alquiler de ${propertyName}`);
+    const reason =
+      diceRoll !== undefined
+        ? `Alquiler de ${propertyName} (Dados: ${diceRoll})`
+        : `Alquiler de ${propertyName}`;
+    const updated = await GameService.transfer(
+      game.id,
+      currentPlayer.id,
+      ownerId,
+      amount,
+      reason,
+      diceRoll
+    );
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
   };
 
   return (

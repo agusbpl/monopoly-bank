@@ -15,6 +15,8 @@ import type { Game, Player } from '../types/game';
 import {
   MONOPOLY_PROPERTIES,
   calculateRent,
+  canBuildHouse,
+  canSellHouse,
   ownsCompleteGroup,
 } from '../data/monopolyProperties';
 import type { PropertyDefinition } from '../data/monopolyProperties';
@@ -32,7 +34,12 @@ interface PropertyManagerModalProps {
   onSellHouse: (propertyId: string) => Promise<void>;
   onMortgage: (propertyId: string) => Promise<void>;
   onUnmortgage: (propertyId: string) => Promise<void>;
-  onPayRent: (ownerId: string, amount: number, propertyName: string) => Promise<void>;
+  onPayRent: (
+    ownerId: string,
+    amount: number,
+    propertyName: string,
+    diceRoll?: number
+  ) => Promise<void>;
 }
 
 export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
@@ -56,6 +63,23 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
   const [tradingProperty, setTradingProperty] = useState<PropertyDefinition | null>(null);
   const [agreedPrice, setAgreedPrice] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Utility dice roll dialog state
+  const [utilityRentProperty, setUtilityRentProperty] = useState<{
+    prop: PropertyDefinition;
+    owner: Player;
+  } | null>(null);
+  const [diceRoll, setDiceRoll] = useState<number>(7);
+  const [diceRollResult, setDiceRollResult] = useState<{ d1: number; d2: number } | null>(null);
+
+  const handleRollDice = () => {
+    const d1 = Math.floor(Math.random() * 6) + 1;
+    const d2 = Math.floor(Math.random() * 6) + 1;
+    const total = d1 + d2;
+    setDiceRollResult({ d1, d2 });
+    setDiceRoll(total);
+    triggerHaptic('success');
+  };
 
   if (!isOpen) return null;
 
@@ -387,44 +411,40 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                         <div className="w-full space-y-1.5">
                           <div className="grid grid-cols-2 gap-1.5">
                             {/* Build / Sell House */}
-                            {prop.houseCost > 0 && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    isSubmitting ||
-                                    !hasMonopoly ||
-                                    state.isMortgaged ||
-                                    state.houses >= 5 ||
-                                    currentPlayer.balance < prop.houseCost
-                                  }
-                                  onClick={() => onBuildHouse(prop.id)}
-                                  title={
-                                    !hasMonopoly
-                                      ? 'Necesitas todas las del grupo para edificar'
-                                      : 'Construir casa/hotel'
-                                  }
-                                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                                >
-                                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span>
-                                    {state.houses === 4
-                                      ? `Hotel (${prop.houseCost} €)`
-                                      : `Casa (${prop.houseCost} €)`}
-                                  </span>
-                                </button>
+                            {prop.houseCost > 0 && (() => {
+                              const buildCheck = canBuildHouse(prop.id, propertiesState, currentPlayer.balance);
+                              const sellCheck = canSellHouse(prop.id, propertiesState);
 
-                                <button
-                                  type="button"
-                                  disabled={isSubmitting || state.houses <= 0}
-                                  onClick={() => onSellHouse(prop.id)}
-                                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                                >
-                                  <Minus className="w-3.5 h-3.5 text-red-400" />
-                                  <span>Vender ({Math.floor(prop.houseCost / 2)} €)</span>
-                                </button>
-                              </>
-                            )}
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting || !buildCheck.allowed}
+                                    onClick={() => onBuildHouse(prop.id)}
+                                    title={buildCheck.reason || 'Construir casa/hotel'}
+                                    className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                  >
+                                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>
+                                      {state.houses === 4
+                                        ? `Hotel (${prop.houseCost} €)`
+                                        : `Casa (${prop.houseCost} €)`}
+                                    </span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting || !sellCheck.allowed}
+                                    onClick={() => onSellHouse(prop.id)}
+                                    title={sellCheck.reason || 'Vender construcción'}
+                                    className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                  >
+                                    <Minus className="w-3.5 h-3.5 text-red-400" />
+                                    <span>Vender ({Math.floor(prop.houseCost / 2)} €)</span>
+                                  </button>
+                                </>
+                              );
+                            })()}
 
                             {/* Mortgage / Unmortgage */}
                             {!state.isMortgaged ? (
@@ -465,9 +485,15 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                             disabled={
                               isSubmitting ||
                               state.isMortgaged ||
-                              currentPlayer.balance < currentRent
+                              (prop.group !== 'utility' && currentPlayer.balance < currentRent)
                             }
                             onClick={async () => {
+                              if (prop.group === 'utility') {
+                                setUtilityRentProperty({ prop, owner: ownerPlayer });
+                                setDiceRoll(7);
+                                setDiceRollResult(null);
+                                return;
+                              }
                               try {
                                 setIsSubmitting(true);
                                 await onPayRent(ownerPlayer.id, currentRent, prop.name);
@@ -483,7 +509,11 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                             className="py-2 px-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
                           >
                             <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Pagar Alquiler ({currentRent} €)</span>
+                            <span>
+                              {prop.group === 'utility'
+                                ? 'Pagar Alquiler (Dados)'
+                                : `Pagar Alquiler (${currentRent} €)`}
+                            </span>
                           </button>
 
                           <button
@@ -564,6 +594,123 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Utility Rent with Dice Roll Modal Dialog */}
+        {utilityRentProperty && (() => {
+          const rentToPay = calculateRent(utilityRentProperty.prop.id, propertiesState, diceRoll);
+          const canAfford = currentPlayer.balance >= rentToPay;
+
+          return (
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-6 flex flex-col justify-center items-center z-50 animate-in fade-in duration-150">
+              <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-sm space-y-4">
+                <div className="text-center space-y-1">
+                  <span className="text-xs uppercase font-bold text-amber-400 tracking-wider">
+                    Alquiler de Servicio
+                  </span>
+                  <h4 className="text-lg font-black text-white">{utilityRentProperty.prop.name}</h4>
+                  <p className="text-xs text-slate-400">
+                    Propietario: <b className="text-white">{utilityRentProperty.owner.name}</b>
+                  </p>
+                </div>
+
+                <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 text-center space-y-3">
+                  <p className="text-xs text-slate-400">
+                    El alquiler depende del resultado de los dados:
+                  </p>
+
+                  {/* Dice visualizer */}
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-12 h-12 bg-slate-800 border border-amber-500/30 rounded-xl flex items-center justify-center text-xl font-black font-mono text-amber-300 shadow-inner">
+                      {diceRollResult ? diceRollResult.d1 : '🎲'}
+                    </div>
+                    <span className="text-lg font-black text-slate-500">+</span>
+                    <div className="w-12 h-12 bg-slate-800 border border-amber-500/30 rounded-xl flex items-center justify-center text-xl font-black font-mono text-amber-300 shadow-inner">
+                      {diceRollResult ? diceRollResult.d2 : '🎲'}
+                    </div>
+                    <span className="text-lg font-black text-slate-500">=</span>
+                    <div className="w-14 h-12 bg-amber-500/20 border border-amber-500/50 rounded-xl flex items-center justify-center text-2xl font-black font-mono text-amber-400">
+                      {diceRoll}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRollDice}
+                    className="w-full py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition"
+                  >
+                    🎲 Tirar dados virtuales
+                  </button>
+
+                  {/* Manual adjustment for physical board dice */}
+                  <div className="space-y-1 pt-1 border-t border-slate-800">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block">
+                      O ajustar suma de dados físicos (2 a 12):
+                    </label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={12}
+                      value={diceRoll}
+                      onChange={(e) => {
+                        const val = Math.min(12, Math.max(2, Number(e.target.value) || 2));
+                        setDiceRoll(val);
+                        setDiceRollResult(null);
+                      }}
+                      className="w-24 text-center py-1.5 px-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono font-bold text-sm mx-auto block"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Alquiler a pagar:</span>
+                    <span className="font-mono font-black text-lg text-emerald-400">
+                      {rentToPay} €
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUtilityRentProperty(null);
+                      setDiceRollResult(null);
+                    }}
+                    className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !canAfford}
+                    onClick={async () => {
+                      try {
+                        setIsSubmitting(true);
+                        await onPayRent(
+                          utilityRentProperty.owner.id,
+                          rentToPay,
+                          utilityRentProperty.prop.name,
+                          diceRoll
+                        );
+                        playTransferSound();
+                        triggerHaptic('success');
+                        setUtilityRentProperty(null);
+                        setDiceRollResult(null);
+                      } catch (err: unknown) {
+                        playBuzzerSound();
+                        alert(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    className="py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-lg transition"
+                  >
+                    Pagar {rentToPay} €
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

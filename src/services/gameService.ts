@@ -1,5 +1,10 @@
 import type { Game, Player, Transaction, PropertyState } from '../types/game';
-import { MONOPOLY_PROPERTIES, PROPERTY_MAP } from '../data/monopolyProperties';
+import {
+  MONOPOLY_PROPERTIES,
+  PROPERTY_MAP,
+  canBuildHouse,
+  canSellHouse,
+} from '../data/monopolyProperties';
 import { supabase, isSupabaseConfigured } from './supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -20,6 +25,17 @@ function initPropertiesMap(): Record<string, PropertyState> {
 
 export class GameService {
   private static broadcastChannels: Map<string, BroadcastChannel> = new Map();
+  private static mutationQueues: Map<string, Promise<unknown>> = new Map();
+
+  /**
+   * Serializes mutations per gameId in memory to eliminate local race conditions
+   */
+  private static enqueue<T>(gameId: string, operation: () => Promise<T>): Promise<T> {
+    const prev = this.mutationQueues.get(gameId) || Promise.resolve();
+    const next = prev.catch(() => {}).then(operation);
+    this.mutationQueues.set(gameId, next);
+    return next;
+  }
 
   private static getChannel(gameId: string): BroadcastChannel | null {
     if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return null;
@@ -56,17 +72,29 @@ export class GameService {
       }
     }
 
-    // Ensure properties map exists (backwards compatibility)
-    if (game && !game.properties) {
-      game.properties = initPropertiesMap();
-      await this.saveGame(game);
+    // Ensure properties map and version exist (backwards compatibility)
+    if (game) {
+      let needsSave = false;
+      if (!game.version) {
+        game.version = 1;
+        needsSave = true;
+      }
+      if (!game.properties) {
+        game.properties = initPropertiesMap();
+        needsSave = true;
+      }
+      if (needsSave) {
+        await this.saveGame(game);
+      }
     }
 
     return game;
   }
 
-  // Save game state
+  // Save game state with version increment for Optimistic Concurrency Control
   static async saveGame(game: Game): Promise<void> {
+    game.version = (game.version ?? 0) + 1;
+
     // 1. Save locally
     localStorage.setItem(`${STORAGE_PREFIX}${game.id}`, JSON.stringify(game));
 
@@ -104,6 +132,7 @@ export class GameService {
       players: {},
       properties: initPropertiesMap(),
       transactions: [],
+      version: 1,
     };
 
     await this.saveGame(newGame);
@@ -112,33 +141,35 @@ export class GameService {
 
   // Add or update player
   static async joinPlayer(gameId: string, player: Omit<Player, 'balance' | 'joinedAt'>): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    if (!game.players[player.id]) {
-      game.players[player.id] = {
-        ...player,
-        balance: game.initialBalance,
-        joinedAt: Date.now(),
-      };
+      if (!game.players[player.id]) {
+        game.players[player.id] = {
+          ...player,
+          balance: game.initialBalance,
+          joinedAt: Date.now(),
+        };
 
-      // Add join transaction
-      game.transactions.unshift({
-        id: crypto.randomUUID(),
-        gameId,
-        fromId: 'bank',
-        fromName: 'Banco',
-        toId: player.id,
-        toName: player.name,
-        amount: game.initialBalance,
-        reason: 'Fondos iniciales de partida',
-        timestamp: Date.now(),
-      });
+        // Add join transaction
+        game.transactions.unshift({
+          id: crypto.randomUUID(),
+          gameId,
+          fromId: 'bank',
+          fromName: 'Banco',
+          toId: player.id,
+          toName: player.name,
+          amount: game.initialBalance,
+          reason: 'Fondos iniciales de partida',
+          timestamp: Date.now(),
+        });
 
-      await this.saveGame(game);
-    }
+        await this.saveGame(game);
+      }
 
-    return game;
+      return game;
+    });
   }
 
   // Transfer money between entities (players or bank)
@@ -147,49 +178,53 @@ export class GameService {
     fromId: string,
     toId: string,
     amount: number,
-    reason?: string
+    reason?: string,
+    diceRoll?: number
   ): Promise<Game> {
-    if (amount <= 0) throw new Error('El monto debe ser mayor a 0');
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      if (amount <= 0) throw new Error('El monto debe ser mayor a 0');
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    let fromName = 'Banco';
-    let toName = 'Banco';
+      let fromName = 'Banco';
+      let toName = 'Banco';
 
-    // Debit sender if not bank
-    if (fromId !== 'bank') {
-      const sender = game.players[fromId];
-      if (!sender) throw new Error('Jugador emisor no existe');
-      if (sender.balance < amount) {
-        throw new Error(`Saldo insuficiente ($${sender.balance} disponibles)`);
+      // Debit sender if not bank
+      if (fromId !== 'bank') {
+        const sender = game.players[fromId];
+        if (!sender) throw new Error('Jugador emisor no existe');
+        if (sender.balance < amount) {
+          throw new Error(`Saldo insuficiente ($${sender.balance} disponibles)`);
+        }
+        sender.balance -= amount;
+        fromName = sender.name;
       }
-      sender.balance -= amount;
-      fromName = sender.name;
-    }
 
-    // Credit receiver if not bank
-    if (toId !== 'bank') {
-      const receiver = game.players[toId];
-      if (!receiver) throw new Error('Jugador receptor no existe');
-      receiver.balance += amount;
-      toName = receiver.name;
-    }
+      // Credit receiver if not bank
+      if (toId !== 'bank') {
+        const receiver = game.players[toId];
+        if (!receiver) throw new Error('Jugador receptor no existe');
+        receiver.balance += amount;
+        toName = receiver.name;
+      }
 
-    const transaction: Transaction = {
-      id: crypto.randomUUID(),
-      gameId,
-      fromId,
-      fromName,
-      toId,
-      toName,
-      amount,
-      reason: reason?.trim() || undefined,
-      timestamp: Date.now(),
-    };
+      const transaction: Transaction = {
+        id: crypto.randomUUID(),
+        gameId,
+        fromId,
+        fromName,
+        toId,
+        toName,
+        amount,
+        reason: reason?.trim() || undefined,
+        diceRoll,
+        timestamp: Date.now(),
+      };
 
-    game.transactions.unshift(transaction);
-    await this.saveGame(game);
-    return game;
+      game.transactions.unshift(transaction);
+      await this.saveGame(game);
+      return game;
+    });
   }
 
   // Quick Pass GO ($200 from bank)
@@ -209,46 +244,48 @@ export class GameService {
 
   // 1. Buy property directly from Bank
   static async buyPropertyFromBank(gameId: string, playerId: string, propertyId: string): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def) throw new Error('Propiedad no válida');
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def) throw new Error('Propiedad no válida');
 
-    const propState = game.properties[propertyId];
-    if (propState && propState.ownerId !== null) {
-      throw new Error('Esta propiedad ya tiene dueño');
-    }
+      const propState = game.properties[propertyId];
+      if (propState && propState.ownerId !== null) {
+        throw new Error('Esta propiedad ya tiene dueño');
+      }
 
-    const player = game.players[playerId];
-    if (!player) throw new Error('Jugador no encontrado');
-    if (player.balance < def.price) {
-      throw new Error(`Saldo insuficiente ($${player.balance}) para comprar ${def.name} ($${def.price})`);
-    }
+      const player = game.players[playerId];
+      if (!player) throw new Error('Jugador no encontrado');
+      if (player.balance < def.price) {
+        throw new Error(`Saldo insuficiente ($${player.balance}) para comprar ${def.name} ($${def.price})`);
+      }
 
-    // Debit player and update owner
-    player.balance -= def.price;
-    game.properties[propertyId] = {
-      propertyId,
-      ownerId: playerId,
-      houses: 0,
-      isMortgaged: false,
-    };
+      // Debit player and update owner
+      player.balance -= def.price;
+      game.properties[propertyId] = {
+        propertyId,
+        ownerId: playerId,
+        houses: 0,
+        isMortgaged: false,
+      };
 
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: playerId,
-      fromName: player.name,
-      toId: 'bank',
-      toName: 'Banco',
-      amount: def.price,
-      reason: `Compra de propiedad: ${def.name}`,
-      timestamp: Date.now(),
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: playerId,
+        fromName: player.name,
+        toId: 'bank',
+        toName: 'Banco',
+        amount: def.price,
+        reason: `Compra de propiedad: ${def.name}`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // 2. Buy / Trade property from another player
@@ -259,226 +296,230 @@ export class GameService {
     propertyId: string,
     agreedPrice: number
   ): Promise<Game> {
-    if (agreedPrice <= 0) throw new Error('El precio acordado debe ser mayor a 0');
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      if (agreedPrice <= 0) throw new Error('El precio acordado debe ser mayor a 0');
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def) throw new Error('Propiedad no válida');
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def) throw new Error('Propiedad no válida');
 
-    const propState = game.properties[propertyId];
-    if (!propState || propState.ownerId !== sellerId) {
-      throw new Error('El vendedor no es el dueño actual de esta propiedad');
-    }
+      const propState = game.properties[propertyId];
+      if (!propState || propState.ownerId !== sellerId) {
+        throw new Error('El vendedor no es el dueño actual de esta propiedad');
+      }
 
-    if (propState.houses > 0) {
-      throw new Error('Debes vender todas las casas y hoteles antes de transferir la propiedad');
-    }
+      if (propState.houses > 0) {
+        throw new Error('Debes vender todas las casas y hoteles antes de transferir la propiedad');
+      }
 
-    const buyer = game.players[buyerId];
-    const seller = game.players[sellerId];
-    if (!buyer || !seller) throw new Error('Jugador no encontrado');
+      const buyer = game.players[buyerId];
+      const seller = game.players[sellerId];
+      if (!buyer || !seller) throw new Error('Jugador no encontrado');
 
-    if (buyer.balance < agreedPrice) {
-      throw new Error(`Saldo insuficiente ($${buyer.balance}) para pagar $${agreedPrice}`);
-    }
+      if (buyer.balance < agreedPrice) {
+        throw new Error(`Saldo insuficiente ($${buyer.balance}) para pagar $${agreedPrice}`);
+      }
 
-    // Debit buyer, credit seller, change title deed owner
-    buyer.balance -= agreedPrice;
-    seller.balance += agreedPrice;
-    propState.ownerId = buyerId;
+      // Debit buyer, credit seller, change title deed owner
+      buyer.balance -= agreedPrice;
+      seller.balance += agreedPrice;
+      propState.ownerId = buyerId;
 
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: buyerId,
-      fromName: buyer.name,
-      toId: sellerId,
-      toName: seller.name,
-      amount: agreedPrice,
-      reason: `Compraventa de propiedad: ${def.name}`,
-      timestamp: Date.now(),
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: buyerId,
+        fromName: buyer.name,
+        toId: sellerId,
+        toName: seller.name,
+        amount: agreedPrice,
+        reason: `Compraventa de propiedad: ${def.name}`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // 3. Build house or upgrade to hotel
   static async buildHouse(gameId: string, playerId: string, propertyId: string): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def || def.houseCost === 0) {
-      throw new Error('No se pueden edificar casas en esta propiedad');
-    }
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def || def.houseCost === 0) {
+        throw new Error('No se pueden edificar casas en esta propiedad');
+      }
 
-    const propState = game.properties[propertyId];
-    if (!propState || propState.ownerId !== playerId) {
-      throw new Error('Solo el propietario puede edificar');
-    }
+      const player = game.players[playerId];
+      if (!player) throw new Error('Jugador no encontrado');
 
-    if (propState.isMortgaged) {
-      throw new Error('No se puede edificar sobre una propiedad hipotecada');
-    }
+      // Validar reglas oficiales de Monopoly (incluida regla de edificación uniforme)
+      const validation = canBuildHouse(propertyId, game.properties, player.balance);
+      if (!validation.allowed) {
+        throw new Error(validation.reason || 'No se puede edificar en esta propiedad');
+      }
 
-    if (propState.houses >= 5) {
-      throw new Error('Esta propiedad ya tiene un Hotel (nivel máximo)');
-    }
+      const propState = game.properties[propertyId];
+      player.balance -= def.houseCost;
+      propState.houses += 1;
 
-    const player = game.players[playerId];
-    if (!player || player.balance < def.houseCost) {
-      throw new Error(`Saldo insuficiente ($${player?.balance}) para construir ($${def.houseCost})`);
-    }
+      const buildingLabel = propState.houses === 5 ? 'Hotel' : `Casa #${propState.houses}`;
 
-    player.balance -= def.houseCost;
-    propState.houses += 1;
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: playerId,
+        fromName: player.name,
+        toId: 'bank',
+        toName: 'Banco',
+        amount: def.houseCost,
+        reason: `Construcción de ${buildingLabel} en ${def.name}`,
+        timestamp: Date.now(),
+      });
 
-    const buildingLabel = propState.houses === 5 ? 'Hotel' : `Casa #${propState.houses}`;
-
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: playerId,
-      fromName: player.name,
-      toId: 'bank',
-      toName: 'Banco',
-      amount: def.houseCost,
-      reason: `Construcción de ${buildingLabel} en ${def.name}`,
-      timestamp: Date.now(),
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // 4. Sell house back to Bank (at 50% value)
   static async sellHouse(gameId: string, playerId: string, propertyId: string): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def || def.houseCost === 0) throw new Error('Propiedad no edificable');
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def || def.houseCost === 0) throw new Error('Propiedad no edificable');
 
-    const propState = game.properties[propertyId];
-    if (!propState || propState.ownerId !== playerId) {
-      throw new Error('No eres el dueño de esta propiedad');
-    }
+      const propState = game.properties[propertyId];
+      if (!propState || propState.ownerId !== playerId) {
+        throw new Error('No eres el dueño de esta propiedad');
+      }
 
-    if (propState.houses <= 0) {
-      throw new Error('No hay casas para vender en esta propiedad');
-    }
+      // Validar regla de venta uniforme
+      const validation = canSellHouse(propertyId, game.properties);
+      if (!validation.allowed) {
+        throw new Error(validation.reason || 'No se puede vender esta construcción');
+      }
 
-    const refund = Math.floor(def.houseCost / 2);
-    const player = game.players[playerId];
-    if (!player) throw new Error('Jugador no encontrado');
+      const refund = Math.floor(def.houseCost / 2);
+      const player = game.players[playerId];
+      if (!player) throw new Error('Jugador no encontrado');
 
-    const oldHouses = propState.houses;
-    propState.houses -= 1;
-    player.balance += refund;
+      const oldHouses = propState.houses;
+      propState.houses -= 1;
+      player.balance += refund;
 
-    const soldLabel = oldHouses === 5 ? 'Hotel' : 'Casa';
+      const soldLabel = oldHouses === 5 ? 'Hotel' : 'Casa';
 
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: 'bank',
-      fromName: 'Banco',
-      toId: playerId,
-      toName: player.name,
-      amount: refund,
-      reason: `Venta de ${soldLabel} en ${def.name} al Banco (+50%)`,
-      timestamp: Date.now(),
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: 'bank',
+        fromName: 'Banco',
+        toId: playerId,
+        toName: player.name,
+        amount: refund,
+        reason: `Venta de ${soldLabel} en ${def.name} al Banco (+50%)`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // 5. Mortgage property (Bank pays 50% of price)
   static async mortgageProperty(gameId: string, playerId: string, propertyId: string): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def) throw new Error('Propiedad no encontrada');
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def) throw new Error('Propiedad no encontrada');
 
-    const propState = game.properties[propertyId];
-    if (!propState || propState.ownerId !== playerId) {
-      throw new Error('No eres el dueño de esta propiedad');
-    }
+      const propState = game.properties[propertyId];
+      if (!propState || propState.ownerId !== playerId) {
+        throw new Error('No eres el dueño de esta propiedad');
+      }
 
-    if (propState.isMortgaged) {
-      throw new Error('La propiedad ya está hipotecada');
-    }
+      if (propState.isMortgaged) {
+        throw new Error('La propiedad ya está hipotecada');
+      }
 
-    if (propState.houses > 0) {
-      throw new Error('Debes vender todas las construcciones antes de hipotecar');
-    }
+      if (propState.houses > 0) {
+        throw new Error('Debes vender todas las construcciones antes de hipotecar');
+      }
 
-    const player = game.players[playerId];
-    if (!player) throw new Error('Jugador no encontrado');
+      const player = game.players[playerId];
+      if (!player) throw new Error('Jugador no encontrado');
 
-    propState.isMortgaged = true;
-    player.balance += def.mortgageValue;
+      propState.isMortgaged = true;
+      player.balance += def.mortgageValue;
 
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: 'bank',
-      fromName: 'Banco',
-      toId: playerId,
-      toName: player.name,
-      amount: def.mortgageValue,
-      reason: `Hipoteca de ${def.name} recibida del Banco`,
-      timestamp: Date.now(),
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: 'bank',
+        fromName: 'Banco',
+        toId: playerId,
+        toName: player.name,
+        amount: def.mortgageValue,
+        reason: `Hipoteca de ${def.name} recibida del Banco`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // 6. Unmortgage property (Pay mortgage + 10% interest)
   static async unmortgageProperty(gameId: string, playerId: string, propertyId: string): Promise<Game> {
-    const game = await this.getGame(gameId);
-    if (!game) throw new Error('Partida no encontrada');
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
 
-    const def = PROPERTY_MAP.get(propertyId);
-    if (!def) throw new Error('Propiedad no encontrada');
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def) throw new Error('Propiedad no encontrada');
 
-    const propState = game.properties[propertyId];
-    if (!propState || propState.ownerId !== playerId) {
-      throw new Error('No eres el dueño de esta propiedad');
-    }
+      const propState = game.properties[propertyId];
+      if (!propState || propState.ownerId !== playerId) {
+        throw new Error('No eres el dueño de esta propiedad');
+      }
 
-    if (!propState.isMortgaged) {
-      throw new Error('La propiedad no está hipotecada');
-    }
+      if (!propState.isMortgaged) {
+        throw new Error('La propiedad no está hipotecada');
+      }
 
-    const cost = Math.round(def.mortgageValue * 1.10);
-    const player = game.players[playerId];
-    if (!player || player.balance < cost) {
-      throw new Error(`Saldo insuficiente ($${player?.balance}) para deshipotecar ($${cost} = Hipoteca + 10%)`);
-    }
+      const cost = Math.round(def.mortgageValue * 1.10);
+      const player = game.players[playerId];
+      if (!player || player.balance < cost) {
+        throw new Error(`Saldo insuficiente ($${player?.balance}) para deshipotecar ($${cost} = Hipoteca + 10%)`);
+      }
 
-    player.balance -= cost;
-    propState.isMortgaged = false;
+      player.balance -= cost;
+      propState.isMortgaged = false;
 
-    game.transactions.unshift({
-      id: crypto.randomUUID(),
-      gameId,
-      fromId: playerId,
-      fromName: player.name,
-      toId: 'bank',
-      toName: 'Banco',
-      amount: cost,
-      reason: `Cancelación de hipoteca (+10% interés) de ${def.name}`,
-      timestamp: Date.now(),
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: playerId,
+        fromName: player.name,
+        toId: 'bank',
+        toName: 'Banco',
+        amount: cost,
+        reason: `Cancelación de hipoteca (+10% interés) de ${def.name}`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
     });
-
-    await this.saveGame(game);
-    return game;
   }
 
   // Subscribe to real-time updates

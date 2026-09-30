@@ -10,6 +10,7 @@ import {
   Building2,
 } from 'lucide-react';
 import type { Game, Player } from '../types/game';
+import { calculateNetWorth } from '../data/monopolyProperties';
 import { playPassGoSound, triggerHaptic } from '../utils/sound';
 import confetti from 'canvas-confetti';
 
@@ -42,6 +43,14 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
   const myProperties = Object.values(game.properties || {}).filter(
     (p) => p.ownerId === currentPlayer.id
   );
+
+  const myNetWorth = calculateNetWorth(currentPlayer, game.properties || {});
+  const allPlayersNetWorth = Object.values(game.players).map((p) => ({
+    player: p,
+    netWorth: calculateNetWorth(p, game.properties || {}),
+  }));
+  const topNetWorth = Math.max(...allPlayersNetWorth.map((p) => p.netWorth));
+  const isLeader = myNetWorth === topNetWorth && allPlayersNetWorth.length > 1;
 
   const handlePassGoClick = async () => {
     playPassGoSound();
@@ -83,11 +92,24 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
         </div>
 
         <div className="relative z-10 space-y-1">
-          <span className="text-xs font-bold text-black/70 uppercase tracking-wider">
-            Saldo Disponible
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-black/70 uppercase tracking-wider">
+              Saldo Disponible
+            </span>
+            {isLeader && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-black bg-black text-amber-300 px-2 py-0.5 rounded-full shadow-sm">
+                👑 Líder Financiero
+              </span>
+            )}
+          </div>
           <div className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-slate-950">
             {currentPlayer.balance.toLocaleString()} €
+          </div>
+          <div className="pt-2.5 mt-2 border-t border-black/15 flex items-center justify-between text-xs text-black/85">
+            <span className="font-bold">Patrimonio Neto Total:</span>
+            <span className="font-mono font-black text-sm text-slate-950">
+              {myNetWorth.toLocaleString()} €
+            </span>
           </div>
         </div>
 
@@ -196,22 +218,32 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            {otherPlayers.map((player) => (
-              <button
-                key={player.id}
-                type="button"
-                onClick={() => onDirectTransferToPlayer(player.id)}
-                className="p-3 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-2xl text-left flex items-center gap-2.5 transition active:scale-[0.98]"
-              >
-                <span className="text-2xl shrink-0">{player.token}</span>
-                <div className="overflow-hidden">
-                  <p className="font-bold text-xs text-white truncate">{player.name}</p>
-                  <p className="text-xs font-mono font-semibold text-emerald-400">
-                    {player.balance.toLocaleString()} €
-                  </p>
-                </div>
-              </button>
-            ))}
+            {otherPlayers.map((player) => {
+              const pNetWorth = calculateNetWorth(player, game.properties || {});
+              const pIsLeader = pNetWorth === topNetWorth && allPlayersNetWorth.length > 1;
+              return (
+                <button
+                  key={player.id}
+                  type="button"
+                  onClick={() => onDirectTransferToPlayer(player.id)}
+                  className="p-3 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-2xl text-left flex items-center gap-2.5 transition active:scale-[0.98]"
+                >
+                  <span className="text-2xl shrink-0">{player.token}</span>
+                  <div className="overflow-hidden flex-1">
+                    <div className="flex items-center gap-1">
+                      <p className="font-bold text-xs text-white truncate">{player.name}</p>
+                      {pIsLeader && <span title="Líder Financiero" className="text-xs">👑</span>}
+                    </div>
+                    <p className="text-xs font-mono font-semibold text-emerald-400">
+                      {player.balance.toLocaleString()} €
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Neto: <span className="font-mono font-bold text-slate-300">{pNetWorth.toLocaleString()} €</span>
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
