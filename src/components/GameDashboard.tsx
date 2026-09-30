@@ -7,6 +7,7 @@ import {
   Sparkles,
   Users,
   History,
+  Building2,
 } from 'lucide-react';
 import type { Game, Player } from '../types/game';
 import { playPassGoSound, triggerHaptic } from '../utils/sound';
@@ -17,6 +18,7 @@ interface GameDashboardProps {
   currentPlayer: Player;
   onOpenScanner: () => void;
   onOpenGenerator: () => void;
+  onOpenProperties: () => void;
   onOpenBank: () => void;
   onOpenHistory: () => void;
   onPassGo: () => Promise<void>;
@@ -28,6 +30,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
   currentPlayer,
   onOpenScanner,
   onOpenGenerator,
+  onOpenProperties,
   onOpenBank,
   onOpenHistory,
   onPassGo,
@@ -35,6 +38,10 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
 }) => {
   const otherPlayers = Object.values(game.players).filter((p) => p.id !== currentPlayer.id);
   const recentTransactions = game.transactions.slice(0, 3);
+
+  const myProperties = Object.values(game.properties || {}).filter(
+    (p) => p.ownerId === currentPlayer.id
+  );
 
   const handlePassGoClick = async () => {
     playPassGoSound();
@@ -128,6 +135,31 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
         </button>
       </div>
 
+      {/* NEW: Property Market / Portfolio Button */}
+      <button
+        type="button"
+        onClick={onOpenProperties}
+        className="w-full p-4 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 hover:from-slate-850 hover:to-slate-800 border border-amber-500/30 rounded-3xl flex items-center justify-between gap-3 shadow-lg transition group active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <h4 className="font-black text-sm text-white">Mercado de Propiedades</h4>
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-lg">
+                {myProperties.length} en tu poder
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Comprar al Banco, negociar con rivales, casas e hipotecas
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="w-5 h-5 text-amber-400 shrink-0 group-hover:translate-x-0.5 transition" />
+      </button>
+
       {/* Secondary Quick Action: Bank Operations */}
       <button
         type="button"
@@ -141,7 +173,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
           <div className="text-left">
             <h4 className="font-bold text-xs text-white">Operaciones con el Banco</h4>
             <p className="text-[11px] text-slate-400">
-              Pagar cárcel, impuestos o cobrar hipotecas
+              Pagar cárcel, impuestos o cobrar del banco
             </p>
           </div>
         </div>

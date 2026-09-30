@@ -6,6 +6,7 @@ import { Lobby } from './components/Lobby';
 import { GameDashboard } from './components/GameDashboard';
 import { QRScannerModal } from './components/QRScannerModal';
 import { QRGeneratorModal } from './components/QRGeneratorModal';
+import { PropertyManagerModal } from './components/PropertyManagerModal';
 import { BankModal } from './components/BankModal';
 import { TransactionHistoryModal } from './components/TransactionHistoryModal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
@@ -21,6 +22,7 @@ export function App() {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerInitialRecipient, setScannerInitialRecipient] = useState<string | undefined>(undefined);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isBankOpen, setIsBankOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
@@ -137,6 +139,72 @@ export function App() {
     setIsScannerOpen(true);
   };
 
+  // Property Handlers
+  const handleBuyFromBank = async (propertyId: string) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.buyPropertyFromBank(game.id, currentPlayer.id, propertyId);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleBuyFromPlayer = async (sellerId: string, propertyId: string, agreedPrice: number) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.buyPropertyFromPlayer(
+      game.id,
+      currentPlayer.id,
+      sellerId,
+      propertyId,
+      agreedPrice
+    );
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleBuildHouse = async (propertyId: string) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.buildHouse(game.id, currentPlayer.id, propertyId);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleSellHouse = async (propertyId: string) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.sellHouse(game.id, currentPlayer.id, propertyId);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleMortgage = async (propertyId: string) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.mortgageProperty(game.id, currentPlayer.id, propertyId);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleUnmortgage = async (propertyId: string) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.unmortgageProperty(game.id, currentPlayer.id, propertyId);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handlePayRent = async (ownerId: string, amount: number, propertyName: string) => {
+    if (!game || !currentPlayer) return;
+    await handleTransfer(ownerId, amount, `Alquiler de ${propertyName}`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
       {/* View routing: Lobby vs Game Dashboard */}
@@ -147,6 +215,7 @@ export function App() {
           <Navbar
             game={game}
             currentPlayer={currentPlayer}
+            onOpenProperties={() => setIsPropertiesOpen(true)}
             onOpenHistory={() => setIsHistoryOpen(true)}
             onOpenBank={() => setIsBankOpen(true)}
             onOpenGuide={() => setIsGuideOpen(true)}
@@ -162,6 +231,7 @@ export function App() {
                 setIsScannerOpen(true);
               }}
               onOpenGenerator={() => setIsGeneratorOpen(true)}
+              onOpenProperties={() => setIsPropertiesOpen(true)}
               onOpenBank={() => setIsBankOpen(true)}
               onOpenHistory={() => setIsHistoryOpen(true)}
               onPassGo={handlePassGo}
@@ -170,6 +240,20 @@ export function App() {
           </main>
 
           {/* Modals */}
+          <PropertyManagerModal
+            isOpen={isPropertiesOpen}
+            onClose={() => setIsPropertiesOpen(false)}
+            game={game}
+            currentPlayer={currentPlayer}
+            onBuyFromBank={handleBuyFromBank}
+            onBuyFromPlayer={handleBuyFromPlayer}
+            onBuildHouse={handleBuildHouse}
+            onSellHouse={handleSellHouse}
+            onMortgage={handleMortgage}
+            onUnmortgage={handleUnmortgage}
+            onPayRent={handlePayRent}
+          />
+
           <QRScannerModal
             isOpen={isScannerOpen}
             onClose={() => {

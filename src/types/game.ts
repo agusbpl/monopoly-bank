@@ -20,6 +20,13 @@ export interface Transaction {
   timestamp: number;
 }
 
+export interface PropertyState {
+  propertyId: string;
+  ownerId: string | null; // null = Banco
+  houses: number; // 0..4 = casas, 5 = hotel
+  isMortgaged: boolean;
+}
+
 export interface Game {
   id: string; // Room code e.g. "MNPL-4821"
   name: string;
@@ -27,6 +34,7 @@ export interface Game {
   passGoAmount: number;
   createdAt: number;
   players: Record<string, Player>;
+  properties: Record<string, PropertyState>;
   transactions: Transaction[];
 }
 
@@ -38,6 +46,7 @@ export interface QRPayload {
   recipientToken: string;
   amount?: number;
   reason?: string;
+  propertyId?: string;
 }
 
 export const MONOPOLY_TOKENS = [

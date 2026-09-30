@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
-import { Landmark, History, LogOut, Copy, Check, Database } from 'lucide-react';
+import { useState } from 'react';
+import { Landmark, History, LogOut, Copy, Check, Database, Building2 } from 'lucide-react';
 import type { Game, Player } from '../types/game';
 
 interface NavbarProps {
   game: Game;
   currentPlayer: Player;
+  onOpenProperties: () => void;
   onOpenHistory: () => void;
   onOpenBank: () => void;
   onOpenGuide: () => void;
   onLeaveGame: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
+export const Navbar = ({
   game,
   currentPlayer,
+  onOpenProperties,
   onOpenHistory,
   onOpenBank,
   onOpenGuide,
   onLeaveGame,
-}) => {
+}: NavbarProps) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopyCode = () => {
@@ -26,6 +28,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const myPropertiesCount = Object.values(game.properties || {}).filter(
+    (p) => p.ownerId === currentPlayer.id
+  ).length;
 
   return (
     <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
@@ -57,6 +63,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenProperties}
+            title="Propiedades y Alquileres"
+            className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-amber-400 transition relative"
+          >
+            <Building2 className="w-4 h-4" />
+            {myPropertiesCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black rounded-full text-[9px] font-black flex items-center justify-center">
+                {myPropertiesCount}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={onOpenBank}
