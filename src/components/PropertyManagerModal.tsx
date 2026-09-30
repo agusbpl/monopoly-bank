@@ -3,15 +3,16 @@ import {
   X,
   Building2,
   Landmark,
-  ArrowRight,
   Plus,
   Minus,
   Coins,
   DollarSign,
   Search,
   Check,
+  Gavel,
+  ArrowLeftRight,
 } from 'lucide-react';
-import type { Game, Player } from '../types/game';
+import type { Game, Player, TradeOffer } from '../types/game';
 import {
   MONOPOLY_PROPERTIES,
   calculateRent,
@@ -40,6 +41,8 @@ interface PropertyManagerModalProps {
     propertyName: string,
     diceRoll?: number
   ) => Promise<void>;
+  onCreateTradeOffer: (offer: Omit<TradeOffer, 'id' | 'status' | 'createdAt'>) => Promise<void>;
+  onAuctionProperty: (propertyId: string, winnerId: string, winningBid: number) => Promise<void>;
 }
 
 export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
@@ -48,20 +51,31 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
   game,
   currentPlayer,
   onBuyFromBank,
-  onBuyFromPlayer,
+  onBuyFromPlayer: _onBuyFromPlayer,
   onBuildHouse,
   onSellHouse,
   onMortgage,
   onUnmortgage,
   onPayRent,
+  onCreateTradeOffer,
+  onAuctionProperty,
 }) => {
   const [filterTab, setFilterTab] = useState<'all' | 'mine' | 'bank' | 'others'>('all');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Trade / buy from player modal state
-  const [tradingProperty, setTradingProperty] = useState<PropertyDefinition | null>(null);
-  const [agreedPrice, setAgreedPrice] = useState<number>(0);
+  // Bilateral Trade builder state
+  const [tradingWithPlayer, setTradingWithPlayer] = useState<Player | null>(null);
+  const [offeredCash, setOfferedCash] = useState<number>(0);
+  const [offeredPropertyIds, setOfferedPropertyIds] = useState<string[]>([]);
+  const [requestedCash, setRequestedCash] = useState<number>(0);
+  const [requestedPropertyIds, setRequestedPropertyIds] = useState<string[]>([]);
+
+  // Auction modal state
+  const [auctioningProperty, setAuctioningProperty] = useState<PropertyDefinition | null>(null);
+  const [auctionWinnerId, setAuctionWinnerId] = useState<string>('');
+  const [auctionWinningBid, setAuctionWinningBid] = useState<number>(10);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Utility dice roll dialog state
@@ -123,29 +137,86 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
     }
   };
 
-  const handleConfirmTrade = async () => {
-    if (!tradingProperty) return;
-    const state = propertiesState[tradingProperty.id];
-    if (!state?.ownerId) return;
+  const myTradeableProperties = MONOPOLY_PROPERTIES.filter(
+    (p) =>
+      propertiesState[p.id]?.ownerId === currentPlayer.id &&
+      (propertiesState[p.id]?.houses || 0) === 0
+  );
 
-    if (agreedPrice <= 0) {
-      alert('Ingresá un precio válido acordado');
+  const targetTradeableProperties = tradingWithPlayer
+    ? MONOPOLY_PROPERTIES.filter(
+        (p) =>
+          propertiesState[p.id]?.ownerId === tradingWithPlayer.id &&
+          (propertiesState[p.id]?.houses || 0) === 0
+      )
+    : [];
+
+  const handleSendTradeOffer = async () => {
+    if (!tradingWithPlayer) return;
+    if (
+      offeredCash === 0 &&
+      requestedCash === 0 &&
+      offeredPropertyIds.length === 0 &&
+      requestedPropertyIds.length === 0
+    ) {
+      alert('Debes incluir al menos efectivo o una propiedad en la propuesta');
       return;
     }
-
-    if (currentPlayer.balance < agreedPrice) {
-      playBuzzerSound();
-      alert(`Saldo insuficiente. Tenés ${currentPlayer.balance} €`);
+    if (offeredCash > currentPlayer.balance) {
+      alert(`Saldo insuficiente. Tu saldo es ${currentPlayer.balance} €`);
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await onBuyFromPlayer(state.ownerId, tradingProperty.id, agreedPrice);
+      await onCreateTradeOffer({
+        gameId: game.id,
+        initiatorId: currentPlayer.id,
+        initiatorName: currentPlayer.name,
+        targetId: tradingWithPlayer.id,
+        targetName: tradingWithPlayer.name,
+        offeredCash,
+        offeredPropertyIds,
+        requestedCash,
+        requestedPropertyIds,
+      });
+      playTransferSound();
+      triggerHaptic('success');
+      alert(`¡Oferta enviada a ${tradingWithPlayer.name}! Esperando su confirmación.`);
+      setTradingWithPlayer(null);
+      setOfferedCash(0);
+      setOfferedPropertyIds([]);
+      setRequestedCash(0);
+      setRequestedPropertyIds([]);
+    } catch (err: unknown) {
+      playBuzzerSound();
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmAuction = async () => {
+    if (!auctioningProperty || !auctionWinnerId) return;
+    if (auctionWinningBid <= 0) {
+      alert('El valor de la puja debe ser mayor a 0');
+      return;
+    }
+    const winner = game.players[auctionWinnerId];
+    if (winner && winner.balance < auctionWinningBid) {
+      alert(
+        `${winner.name} no tiene saldo suficiente (${winner.balance} €) para pagar ${auctionWinningBid} €`
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await onAuctionProperty(auctioningProperty.id, auctionWinnerId, auctionWinningBid);
       playCoinsSound();
       triggerHaptic('success');
       confetti({ particleCount: 50, spread: 60 });
-      setTradingProperty(null);
+      setAuctioningProperty(null);
     } catch (err: unknown) {
       playBuzzerSound();
       alert(err instanceof Error ? err.message : String(err));
@@ -393,17 +464,38 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
 
                     {/* ACTION BUTTONS (State-dependent) */}
                     <div className="pt-1 flex flex-wrap gap-1.5">
-                      {/* Case 1: In the Bank -> Direct buy button */}
+                      {/* Case 1: In the Bank -> Direct buy button + Auction (Banker) */}
                       {isBank && (
-                        <button
-                          type="button"
-                          disabled={isSubmitting || currentPlayer.balance < prop.price}
-                          onClick={() => handleBuyFromBank(prop.id)}
-                          className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
-                        >
-                          <Coins className="w-3.5 h-3.5" />
-                          <span>Comprar al Banco por {prop.price} €</span>
-                        </button>
+                        <div className="w-full space-y-1.5">
+                          <button
+                            type="button"
+                            disabled={isSubmitting || currentPlayer.balance < prop.price}
+                            onClick={() => handleBuyFromBank(prop.id)}
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
+                          >
+                            <Coins className="w-3.5 h-3.5" />
+                            <span>Comprar al Banco por {prop.price} €</span>
+                          </button>
+
+                          {(currentPlayer.isBanker || currentPlayer.id === game.bankerId) && (
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => {
+                                setAuctioningProperty(prop);
+                                const firstOther =
+                                  Object.values(game.players).find((p) => p.id !== currentPlayer.id)
+                                    ?.id || currentPlayer.id;
+                                setAuctionWinnerId(firstOther);
+                                setAuctionWinningBid(Math.floor(prop.price / 2));
+                              }}
+                              className="w-full py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                            >
+                              <Gavel className="w-3.5 h-3.5 text-blue-400" />
+                              <span>Subastar como Banquero</span>
+                            </button>
+                          )}
+                        </div>
                       )}
 
                       {/* Case 2: Owned by Me -> Manage buildings & mortgage */}
@@ -520,13 +612,16 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
                             type="button"
                             disabled={isSubmitting || state.houses > 0}
                             onClick={() => {
-                              setTradingProperty(prop);
-                              setAgreedPrice(prop.price);
+                              setTradingWithPlayer(ownerPlayer);
+                              setRequestedPropertyIds([prop.id]);
+                              setOfferedPropertyIds([]);
+                              setOfferedCash(prop.price);
+                              setRequestedCash(0);
                             }}
                             className="py-2 px-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
                           >
-                            <ArrowRight className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Comprar a {ownerPlayer.name}</span>
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Trueque con {ownerPlayer.name}</span>
                           </button>
                         </div>
                       )}
@@ -538,57 +633,252 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
           )}
         </div>
 
-        {/* Trade/Buy from player sub-modal dialog */}
-        {tradingProperty && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-6 flex flex-col justify-center items-center z-50 animate-in fade-in duration-150">
-            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-sm space-y-4">
+        {/* Bilateral Trade Builder Dialog */}
+        {tradingWithPlayer && (
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-4 sm:p-6 flex flex-col justify-center items-center z-50 animate-in fade-in duration-150 overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="text-center space-y-1">
-                <span className="text-xs uppercase font-bold text-amber-400 tracking-wider">
-                  Negociación de Propiedad
-                </span>
-                <h4 className="text-lg font-black text-white">{tradingProperty.name}</h4>
+                <div className="inline-flex p-2 bg-amber-500/20 text-amber-400 rounded-xl mb-1">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <h4 className="text-lg font-black text-white">Propuesta de Trueque</h4>
                 <p className="text-xs text-slate-400">
-                  Dueño actual:{' '}
-                  <b>{game.players[propertiesState[tradingProperty.id]?.ownerId || '']?.name}</b>
+                  Negociando con <b className="text-amber-400">{tradingWithPlayer.name}</b>
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 flex justify-between">
-                  <span>Precio de compra acordado:</span>
-                  <span className="text-slate-400">
-                    Tu saldo: <b className="text-emerald-400 font-mono">{currentPlayer.balance} €</b>
+              {/* What you offer */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                    Lo que ofreces (Tú)
                   </span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-500">
-                    €
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Saldo: <b className="text-emerald-400">{currentPlayer.balance} €</b>
                   </span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={agreedPrice || ''}
-                    onChange={(e) => setAgreedPrice(Number(e.target.value))}
-                    className="w-full pl-8 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-lg font-bold text-white focus:outline-none focus:border-amber-400"
-                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] text-slate-400 font-semibold block">Efectivo ofrecido:</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
+                      €
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={currentPlayer.balance}
+                      value={offeredCash || ''}
+                      onChange={(e) => setOfferedCash(Math.max(0, Number(e.target.value)))}
+                      placeholder="0"
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-slate-400 font-semibold block">
+                    Escrituras que entregas ({offeredPropertyIds.length}):
+                  </label>
+                  {myTradeableProperties.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic">No tienes propiedades sin edificar para ofrecer</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-slate-900/50 rounded-xl border border-slate-800">
+                      {myTradeableProperties.map((p) => {
+                        const isSelected = offeredPropertyIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setOfferedPropertyIds((prev) =>
+                                isSelected ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                              );
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 border ${
+                              isSelected
+                                ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-300'
+                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.groupColor }} />
+                            <span>{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              {/* What you request */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                    Lo que pides ({tradingWithPlayer.name})
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Saldo: <b className="text-amber-400">{tradingWithPlayer.balance} €</b>
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] text-slate-400 font-semibold block">Efectivo pedido:</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
+                      €
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={requestedCash || ''}
+                      onChange={(e) => setRequestedCash(Math.max(0, Number(e.target.value)))}
+                      placeholder="0"
+                      className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-slate-400 font-semibold block">
+                    Escrituras pedidas ({requestedPropertyIds.length}):
+                  </label>
+                  {targetTradeableProperties.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic">No tiene propiedades sin edificar disponibles</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-slate-900/50 rounded-xl border border-slate-800">
+                      {targetTradeableProperties.map((p) => {
+                        const isSelected = requestedPropertyIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setRequestedPropertyIds((prev) =>
+                                isSelected ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                              );
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 border ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
+                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.groupColor }} />
+                            <span>{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setTradingProperty(null)}
+                  onClick={() => {
+                    setTradingWithPlayer(null);
+                    setOfferedCash(0);
+                    setOfferedPropertyIds([]);
+                    setRequestedCash(0);
+                    setRequestedPropertyIds([]);
+                  }}
                   className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting || agreedPrice <= 0 || agreedPrice > currentPlayer.balance}
-                  onClick={handleConfirmTrade}
+                  disabled={
+                    isSubmitting ||
+                    offeredCash > currentPlayer.balance ||
+                    (offeredCash === 0 &&
+                      requestedCash === 0 &&
+                      offeredPropertyIds.length === 0 &&
+                      requestedPropertyIds.length === 0)
+                  }
+                  onClick={handleSendTradeOffer}
                   className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-black text-xs rounded-xl shadow-lg transition"
                 >
-                  Confirmar Compra
+                  Enviar Oferta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Banker Fast Auction Modal Dialog */}
+        {auctioningProperty && (
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-6 flex flex-col justify-center items-center z-50 animate-in fade-in duration-150">
+            <div className="bg-slate-900 border border-blue-500/40 rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+              <div className="text-center space-y-1">
+                <div className="inline-flex p-2 bg-blue-500/20 text-blue-400 rounded-xl mb-1">
+                  <Gavel className="w-6 h-6" />
+                </div>
+                <h4 className="text-lg font-black text-white">Subasta del Banquero</h4>
+                <p className="text-xs text-slate-400">
+                  Propiedad: <b className="text-white">{auctioningProperty.name}</b> (Valor: {auctioningProperty.price} €)
+                </p>
+              </div>
+
+              <div className="space-y-3 bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Ganador de la puja:
+                  </label>
+                  <select
+                    value={auctionWinnerId}
+                    onChange={(e) => setAuctionWinnerId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white focus:outline-none focus:border-blue-400"
+                  >
+                    {Object.values(game.players).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.token} {p.name} ({p.balance} €)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300 flex justify-between">
+                    <span>Monto de la puja ganadora:</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
+                      €
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={auctionWinningBid || ''}
+                      onChange={(e) => setAuctionWinningBid(Math.max(1, Number(e.target.value)))}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white focus:outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAuctioningProperty(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isSubmitting ||
+                    auctionWinningBid <= 0 ||
+                    !auctionWinnerId ||
+                    (game.players[auctionWinnerId]?.balance || 0) < auctionWinningBid
+                  }
+                  onClick={handleConfirmAuction}
+                  className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg transition"
+                >
+                  Adjudicar Subasta
                 </button>
               </div>
             </div>

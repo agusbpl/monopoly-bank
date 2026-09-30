@@ -1,4 +1,4 @@
-import type { Game, Player, Transaction, PropertyState } from '../types/game';
+import type { Game, Player, Transaction, PropertyState, TradeOffer } from '../types/game';
 import {
   MONOPOLY_PROPERTIES,
   PROPERTY_MAP,
@@ -83,6 +83,10 @@ export class GameService {
         game.properties = initPropertiesMap();
         needsSave = true;
       }
+      if (!game.pendingTrades) {
+        game.pendingTrades = {};
+        needsSave = true;
+      }
       if (needsSave) {
         await this.saveGame(game);
       }
@@ -133,6 +137,7 @@ export class GameService {
       properties: initPropertiesMap(),
       transactions: [],
       version: 1,
+      pendingTrades: {},
     };
 
     await this.saveGame(newGame);
@@ -146,9 +151,15 @@ export class GameService {
       if (!game) throw new Error('Partida no encontrada');
 
       if (!game.players[player.id]) {
+        const isFirstPlayer = Object.keys(game.players).length === 0;
+        if (!game.bankerId && isFirstPlayer) {
+          game.bankerId = player.id;
+        }
+
         game.players[player.id] = {
           ...player,
           balance: game.initialBalance,
+          isBanker: game.bankerId === player.id,
           joinedAt: Date.now(),
         };
 
@@ -581,5 +592,233 @@ export class GameService {
         supabase.removeChannel(supabaseSub);
       }
     };
+  }
+
+  // --- BILATERAL TRADES & BANKER ACTIONS ---
+
+  // Create a bilateral trade offer (cash + properties)
+  static async createTradeOffer(
+    gameId: string,
+    offer: Omit<TradeOffer, 'id' | 'status' | 'createdAt'>
+  ): Promise<Game> {
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
+
+      const initiator = game.players[offer.initiatorId];
+      const target = game.players[offer.targetId];
+      if (!initiator || !target) throw new Error('Jugadores de la propuesta no válidos');
+
+      if (offer.offeredCash < 0 || offer.requestedCash < 0) {
+        throw new Error('Los montos no pueden ser negativos');
+      }
+
+      if (initiator.balance < offer.offeredCash) {
+        throw new Error(`Saldo insuficiente (${initiator.balance} €) para ofrecer ${offer.offeredCash} €`);
+      }
+
+      // Verify offered properties belong to initiator and have 0 houses
+      for (const propId of offer.offeredPropertyIds) {
+        const state = game.properties[propId];
+        if (!state || state.ownerId !== initiator.id) {
+          throw new Error('Una o más propiedades ofrecidas no te pertenecen');
+        }
+        if (state.houses > 0) {
+          throw new Error('No puedes ofrecer propiedades que tengan construcciones');
+        }
+      }
+
+      // Verify requested properties belong to target and have 0 houses
+      for (const propId of offer.requestedPropertyIds) {
+        const state = game.properties[propId];
+        if (!state || state.ownerId !== target.id) {
+          throw new Error('Una o más propiedades pedidas no pertenecen al destinatario');
+        }
+        if (state.houses > 0) {
+          throw new Error('No puedes pedir propiedades que tengan construcciones');
+        }
+      }
+
+      if (!game.pendingTrades) {
+        game.pendingTrades = {};
+      }
+
+      const tradeId = crypto.randomUUID();
+      const trade: TradeOffer = {
+        ...offer,
+        id: tradeId,
+        status: 'pending',
+        createdAt: Date.now(),
+      };
+
+      game.pendingTrades[tradeId] = trade;
+      await this.saveGame(game);
+      return game;
+    });
+  }
+
+  // Respond to a bilateral trade offer (Accept or Reject)
+  static async respondToTradeOffer(
+    gameId: string,
+    tradeId: string,
+    accept: boolean
+  ): Promise<Game> {
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
+
+      const trade = game.pendingTrades?.[tradeId];
+      if (!trade || trade.status !== 'pending') {
+        throw new Error('La oferta ya no está disponible');
+      }
+
+      if (!accept) {
+        trade.status = 'rejected';
+        await this.saveGame(game);
+        return game;
+      }
+
+      const initiator = game.players[trade.initiatorId];
+      const target = game.players[trade.targetId];
+      if (!initiator || !target) throw new Error('Jugadores no encontrados');
+
+      // Validate balances at time of acceptance
+      if (initiator.balance < trade.offeredCash) {
+        throw new Error(`${initiator.name} no cuenta con el efectivo ofrecido (${trade.offeredCash} €)`);
+      }
+      if (target.balance < trade.requestedCash) {
+        throw new Error(`Saldo insuficiente (${target.balance} €) para aceptar pagar ${trade.requestedCash} €`);
+      }
+
+      // Validate properties still belong to respective players
+      for (const propId of trade.offeredPropertyIds) {
+        const state = game.properties[propId];
+        if (!state || state.ownerId !== initiator.id || state.houses > 0) {
+          throw new Error('Las propiedades ofrecidas ya no están disponibles para trueque');
+        }
+      }
+      for (const propId of trade.requestedPropertyIds) {
+        const state = game.properties[propId];
+        if (!state || state.ownerId !== target.id || state.houses > 0) {
+          throw new Error('Las propiedades solicitadas ya no están disponibles para trueque');
+        }
+      }
+
+      // 1. Swap cash
+      if (trade.offeredCash > 0) {
+        initiator.balance -= trade.offeredCash;
+        target.balance += trade.offeredCash;
+      }
+      if (trade.requestedCash > 0) {
+        target.balance -= trade.requestedCash;
+        initiator.balance += trade.requestedCash;
+      }
+
+      // 2. Swap properties
+      for (const propId of trade.offeredPropertyIds) {
+        game.properties[propId].ownerId = target.id;
+      }
+      for (const propId of trade.requestedPropertyIds) {
+        game.properties[propId].ownerId = initiator.id;
+      }
+
+      // 3. Mark trade accepted
+      trade.status = 'accepted';
+
+      // 4. Audit ledger entry
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: initiator.id,
+        fromName: initiator.name,
+        toId: target.id,
+        toName: target.name,
+        amount: Math.abs(trade.offeredCash - trade.requestedCash),
+        reason: `Trueque bilateral aceptado (${trade.offeredPropertyIds.length} escrituras ↔ ${trade.requestedPropertyIds.length} escrituras)`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
+    });
+  }
+
+  // Cancel an outgoing trade offer
+  static async cancelTradeOffer(gameId: string, tradeId: string): Promise<Game> {
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
+
+      if (game.pendingTrades?.[tradeId]) {
+        game.pendingTrades[tradeId].status = 'canceled';
+        await this.saveGame(game);
+      }
+      return game;
+    });
+  }
+
+  // Banker action: Auction an unowned property to highest bidder
+  static async auctionProperty(
+    gameId: string,
+    propertyId: string,
+    winnerId: string,
+    winningBid: number
+  ): Promise<Game> {
+    return this.enqueue(gameId, async () => {
+      if (winningBid <= 0) throw new Error('El monto de la puja debe ser mayor a 0');
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
+
+      const def = PROPERTY_MAP.get(propertyId);
+      if (!def) throw new Error('Propiedad no encontrada');
+
+      const propState = game.properties[propertyId];
+      if (!propState || propState.ownerId !== null) {
+        throw new Error('Solo se pueden subastar propiedades del Banco');
+      }
+
+      const winner = game.players[winnerId];
+      if (!winner) throw new Error('Jugador ganador no encontrado');
+      if (winner.balance < winningBid) {
+        throw new Error(`Saldo insuficiente (${winner.balance} €) para pagar la puja de ${winningBid} €`);
+      }
+
+      winner.balance -= winningBid;
+      propState.ownerId = winner.id;
+      propState.houses = 0;
+      propState.isMortgaged = false;
+
+      game.transactions.unshift({
+        id: crypto.randomUUID(),
+        gameId,
+        fromId: winner.id,
+        fromName: winner.name,
+        toId: 'bank',
+        toName: 'Banco',
+        amount: winningBid,
+        reason: `Subasta adjudicada: ${def.name} por ${winningBid} €`,
+        timestamp: Date.now(),
+      });
+
+      await this.saveGame(game);
+      return game;
+    });
+  }
+
+  // Assign Banker role to another player
+  static async setBanker(gameId: string, bankerId: string): Promise<Game> {
+    return this.enqueue(gameId, async () => {
+      const game = await this.getGame(gameId);
+      if (!game) throw new Error('Partida no encontrada');
+      if (!game.players[bankerId]) throw new Error('Jugador no encontrado');
+
+      game.bankerId = bankerId;
+      Object.values(game.players).forEach((p) => {
+        p.isBanker = p.id === bankerId;
+      });
+
+      await this.saveGame(game);
+      return game;
+    });
   }
 }

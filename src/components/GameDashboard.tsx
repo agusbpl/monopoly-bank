@@ -37,7 +37,6 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
   onPassGo,
   onDirectTransferToPlayer,
 }) => {
-  const otherPlayers = Object.values(game.players).filter((p) => p.id !== currentPlayer.id);
   const recentTransactions = game.transactions.slice(0, 3);
 
   const myProperties = Object.values(game.properties || {}).filter(
@@ -45,12 +44,16 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
   );
 
   const myNetWorth = calculateNetWorth(currentPlayer, game.properties || {});
-  const allPlayersNetWorth = Object.values(game.players).map((p) => ({
-    player: p,
-    netWorth: calculateNetWorth(p, game.properties || {}),
-  }));
-  const topNetWorth = Math.max(...allPlayersNetWorth.map((p) => p.netWorth));
-  const isLeader = myNetWorth === topNetWorth && allPlayersNetWorth.length > 1;
+  const allPlayersRanked = Object.values(game.players)
+    .map((p) => ({
+      player: p,
+      netWorth: calculateNetWorth(p, game.properties || {}),
+    }))
+    .sort((a, b) => b.netWorth - a.netWorth);
+
+  const myRankIndex = allPlayersRanked.findIndex((item) => item.player.id === currentPlayer.id);
+  const myRank = myRankIndex !== -1 ? myRankIndex + 1 : 1;
+  const totalPlayers = allPlayersRanked.length;
 
   const handlePassGoClick = async () => {
     playPassGoSound();
@@ -78,9 +81,16 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
               {currentPlayer.token}
             </span>
             <div>
-              <h2 className="font-black text-lg text-black leading-tight">
-                {currentPlayer.name}
-              </h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-black text-lg text-black leading-tight">
+                  {currentPlayer.name}
+                </h2>
+                {currentPlayer.isBanker && (
+                  <span className="text-[10px] font-black bg-black text-amber-300 px-1.5 py-0.5 rounded-md">
+                    🏦 BANCA
+                  </span>
+                )}
+              </div>
               <span className="text-[11px] font-bold text-black/75 uppercase tracking-wide">
                 {game.name}
               </span>
@@ -96,11 +106,14 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
             <span className="text-xs font-bold text-black/70 uppercase tracking-wider">
               Saldo Disponible
             </span>
-            {isLeader && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-black bg-black text-amber-300 px-2 py-0.5 rounded-full shadow-sm">
-                👑 Líder Financiero
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[11px] font-black bg-black text-amber-300 px-2.5 py-0.5 rounded-full shadow-sm">
+                {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🎖️'} Puesto #{myRank} de {totalPlayers}
               </span>
-            )}
+              {myRank === 1 && totalPlayers > 1 && (
+                <span className="text-sm" title="Líder Financiero">👑</span>
+              )}
+            </div>
           </div>
           <div className="text-4xl sm:text-5xl font-black font-mono tracking-tight text-slate-950">
             {currentPlayer.balance.toLocaleString()} €
@@ -202,50 +215,76 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({
         <ArrowRight className="w-4 h-4 text-slate-500" />
       </button>
 
-      {/* Other Players in the Game */}
+      {/* Unified Table Leaderboard & Players */}
       <div className="space-y-2 pt-1">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5 text-amber-400" />
-            Jugadores en la mesa ({Object.keys(game.players).length})
+            Tabla de Posiciones ({totalPlayers})
           </span>
-          <span className="text-[10px] text-slate-500">Tocá para transferir directo</span>
+          <span className="text-[10px] text-slate-500">Tocá un rival para transferir</span>
         </div>
 
-        {otherPlayers.length === 0 ? (
-          <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl text-center text-xs text-slate-500">
-            Esperando que otros jugadores se unan con el código <b>{game.id}</b>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {otherPlayers.map((player) => {
-              const pNetWorth = calculateNetWorth(player, game.properties || {});
-              const pIsLeader = pNetWorth === topNetWorth && allPlayersNetWorth.length > 1;
-              return (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => onDirectTransferToPlayer(player.id)}
-                  className="p-3 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-2xl text-left flex items-center gap-2.5 transition active:scale-[0.98]"
-                >
+        <div className="space-y-1.5">
+          {allPlayersRanked.map(({ player, netWorth }, index) => {
+            const isMe = player.id === currentPlayer.id;
+            const rankLabel =
+              index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+
+            return (
+              <div
+                key={player.id}
+                onClick={() => {
+                  if (!isMe) onDirectTransferToPlayer(player.id);
+                }}
+                className={`p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${
+                  isMe
+                    ? 'bg-amber-500/10 border-amber-500/40 cursor-default'
+                    : 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 hover:border-slate-700 cursor-pointer active:scale-[0.99]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <span className="text-base font-black w-6 text-center shrink-0">
+                    {rankLabel}
+                  </span>
                   <span className="text-2xl shrink-0">{player.token}</span>
-                  <div className="overflow-hidden flex-1">
-                    <div className="flex items-center gap-1">
-                      <p className="font-bold text-xs text-white truncate">{player.name}</p>
-                      {pIsLeader && <span title="Líder Financiero" className="text-xs">👑</span>}
+                  <div className="overflow-hidden">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-xs text-white truncate">
+                        {player.name}
+                      </p>
+                      {isMe && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 bg-amber-400 text-black rounded-md">
+                          TÚ
+                        </span>
+                      )}
+                      {player.isBanker && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-md">
+                          🏦 BANCA
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs font-mono font-semibold text-emerald-400">
-                      {player.balance.toLocaleString()} €
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      Neto: <span className="font-mono font-bold text-slate-300">{pNetWorth.toLocaleString()} €</span>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Efectivo:{' '}
+                      <span className="font-mono font-semibold text-emerald-400">
+                        {player.balance.toLocaleString()} €
+                      </span>
                     </p>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Patrimonio
+                  </span>
+                  <span className="font-mono font-black text-sm text-amber-300">
+                    {netWorth.toLocaleString()} €
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Recent Activity Mini-Feed */}

@@ -28,6 +28,21 @@ export interface PropertyState {
   isMortgaged: boolean;
 }
 
+export interface TradeOffer {
+  id: string;
+  gameId: string;
+  initiatorId: string;
+  initiatorName: string;
+  targetId: string;
+  targetName: string;
+  offeredCash: number;
+  offeredPropertyIds: string[];
+  requestedCash: number;
+  requestedPropertyIds: string[];
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled';
+  createdAt: number;
+}
+
 export interface Game {
   id: string; // Room code e.g. "MNPL-4821"
   name: string;
@@ -38,6 +53,8 @@ export interface Game {
   properties: Record<string, PropertyState>;
   transactions: Transaction[];
   version?: number;
+  bankerId?: string;
+  pendingTrades?: Record<string, TradeOffer>;
 }
 
 export interface QRPayload {

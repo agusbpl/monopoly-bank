@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Game, Player } from './types/game';
+import type { Game, Player, TradeOffer } from './types/game';
 import { GameService } from './services/gameService';
 import { Navbar } from './components/Navbar';
 import { Lobby } from './components/Lobby';
@@ -10,6 +10,7 @@ import { PropertyManagerModal } from './components/PropertyManagerModal';
 import { BankModal } from './components/BankModal';
 import { TransactionHistoryModal } from './components/TransactionHistoryModal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
+import { IncomingTradeModal } from './components/IncomingTradeModal';
 import { playCoinsSound, triggerHaptic } from './utils/sound';
 
 const SESSION_KEY = 'monopoly_active_session';
@@ -225,6 +226,36 @@ export function App() {
     }
   };
 
+  const handleCreateTradeOffer = async (
+    offer: Omit<TradeOffer, 'id' | 'status' | 'createdAt'>
+  ) => {
+    if (!game) return;
+    const updated = await GameService.createTradeOffer(game.id, offer);
+    setGame(updated);
+  };
+
+  const handleRespondTrade = async (tradeId: string, accept: boolean) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.respondToTradeOffer(game.id, tradeId, accept);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
+  const handleAuctionProperty = async (
+    propertyId: string,
+    winnerId: string,
+    winningBid: number
+  ) => {
+    if (!game || !currentPlayer) return;
+    const updated = await GameService.auctionProperty(game.id, propertyId, winnerId, winningBid);
+    setGame(updated);
+    if (updated.players[currentPlayer.id]) {
+      setCurrentPlayer(updated.players[currentPlayer.id]);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
       {/* View routing: Lobby vs Game Dashboard */}
@@ -272,6 +303,14 @@ export function App() {
             onMortgage={handleMortgage}
             onUnmortgage={handleUnmortgage}
             onPayRent={handlePayRent}
+            onCreateTradeOffer={handleCreateTradeOffer}
+            onAuctionProperty={handleAuctionProperty}
+          />
+
+          <IncomingTradeModal
+            game={game}
+            currentPlayer={currentPlayer}
+            onRespondTrade={handleRespondTrade}
           />
 
           <QRScannerModal
