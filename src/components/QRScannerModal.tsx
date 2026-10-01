@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { X, Camera, AlertCircle, ArrowRight, Send, ArrowLeftRight } from 'lucide-react';
-import type { Game, Player, QRPayload } from '../types/game';
+import type { Game, Player, QRPayload, TradeOffer } from '../types/game';
 import { playTransferSound, playBuzzerSound, triggerHaptic } from '../utils/sound';
 import confetti from 'canvas-confetti';
 import { MONOPOLY_PROPERTIES, calculateRent } from '../data/monopolyProperties';
+import { TradeBuilderModal } from './TradeBuilderModal';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface QRScannerModalProps {
   initialRecipientId?: string;
   onTransfer: (toId: string, amount: number, reason?: string) => Promise<void>;
   onPayRent?: (ownerId: string, amount: number, propertyName: string, diceRoll?: number) => Promise<void>;
-  onOpenTradeWith?: (targetPlayerId: string, propertyId: string) => void;
+  onCreateTradeOffer?: (offer: Omit<TradeOffer, 'id' | 'status' | 'createdAt'>) => Promise<void>;
 }
 
 export const QRScannerModal = ({
@@ -25,7 +26,7 @@ export const QRScannerModal = ({
   initialRecipientId,
   onTransfer,
   onPayRent,
-  onOpenTradeWith,
+  onCreateTradeOffer,
 }: QRScannerModalProps) => {
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export const QRScannerModal = ({
   const [activeTab, setActiveTab] = useState<'transfer' | 'properties'>('transfer');
   const [utilityDiceProperty, setUtilityDiceProperty] = useState<string | null>(null);
   const [diceRoll, setDiceRoll] = useState(7);
+  const [tradingPropertyId, setTradingPropertyId] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export const QRScannerModal = ({
       setCameraError(null);
       setActiveTab('transfer');
       setUtilityDiceProperty(null);
+      setTradingPropertyId(null);
       return;
     }
 
@@ -418,11 +421,11 @@ export const QRScannerModal = ({
 
                   return (
                     <div key={prop.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
-                      <div className="flex h-12">
-                        <div className="w-1.5 shrink-0" style={{ backgroundColor: prop.groupColor }} />
-                        <div className="flex-1 px-3 py-2 flex items-center justify-between min-w-0">
-                          <div className="truncate pr-2">
-                            <h4 className="text-sm font-bold text-white truncate flex items-center gap-2">
+                      <div className="flex min-h-[52px]">
+                        <div className="w-1.5 shrink-0 self-stretch" style={{ backgroundColor: prop.groupColor }} />
+                        <div className="flex-1 px-3 py-2 flex items-center justify-between gap-2 min-w-0">
+                          <div className="truncate pr-1">
+                            <h4 className="text-sm font-bold text-white truncate flex items-center gap-1.5">
                               {prop.name}
                               {isMortgaged && <span className="text-[10px] font-normal text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-md">(Hipotecada)</span>}
                             </h4>
@@ -432,20 +435,19 @@ export const QRScannerModal = ({
                               {!isMortgaged && state.houses === 5 && ` • 🏨`}
                             </p>
                           </div>
-                          <div className="flex gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
-                              onClick={() => {
-                                if (onOpenTradeWith) {
-                                  onOpenTradeWith(selectedRecipientId, prop.id);
-                                }
-                              }}
-                              className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition"
-                              title="Trueque"
+                              type="button"
+                              onClick={() => setTradingPropertyId(prop.id)}
+                              className="px-2.5 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                              title="Intercambiar propiedad"
                             >
-                              <ArrowLeftRight className="w-4 h-4" />
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                              <span>Intercambiar</span>
                             </button>
                             {isUtility && !isMortgaged ? (
                               <button
+                                type="button"
                                 onClick={() => setUtilityDiceProperty(isUtilitySelected ? null : prop.id)}
                                 className="px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-xs font-bold rounded-lg transition"
                               >
@@ -453,6 +455,7 @@ export const QRScannerModal = ({
                               </button>
                             ) : (
                               <button
+                                type="button"
                                 disabled={isMortgaged || isSubmitting || rentAmount <= 0}
                                 onClick={async () => {
                                   if (onPayRent) {
@@ -528,6 +531,22 @@ export const QRScannerModal = ({
           })()}
         </div>
       </div>
+
+      {/* Bilateral Trade Builder Dialog Direct */}
+      {tradingPropertyId && targetPlayer && onCreateTradeOffer && (
+        <TradeBuilderModal
+          isOpen={Boolean(tradingPropertyId)}
+          onClose={() => setTradingPropertyId(null)}
+          game={game}
+          currentPlayer={currentPlayer}
+          targetPlayer={targetPlayer}
+          initialRequestedPropertyId={tradingPropertyId}
+          onCreateTradeOffer={async (offer) => {
+            await onCreateTradeOffer(offer);
+            setTradingPropertyId(null);
+          }}
+        />
+      )}
     </div>
   );
 };

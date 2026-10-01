@@ -321,11 +321,7 @@ export function App() {
             initialRecipientId={scannerInitialRecipient}
             onTransfer={handleTransfer}
             onPayRent={handlePayRent}
-            onOpenTradeWith={(_targetPlayerId, _propertyId) => {
-              setIsScannerOpen(false);
-              setScannerInitialRecipient(undefined);
-              setIsPropertiesOpen(true);
-            }}
+            onCreateTradeOffer={handleCreateTradeOffer}
           />
 
           <QRGeneratorModal
