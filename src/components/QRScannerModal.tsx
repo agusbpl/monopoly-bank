@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle, ArrowRight, Send } from 'lucide-react';
+import { X, Camera, AlertCircle, ArrowRight, Send, ArrowLeftRight } from 'lucide-react';
 import type { Game, Player, QRPayload } from '../types/game';
 import { playTransferSound, playBuzzerSound, triggerHaptic } from '../utils/sound';
 import confetti from 'canvas-confetti';
+import { MONOPOLY_PROPERTIES, calculateRent } from '../data/monopolyProperties';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface QRScannerModalProps {
   currentPlayer: Player;
   initialRecipientId?: string;
   onTransfer: (toId: string, amount: number, reason?: string) => Promise<void>;
+  onPayRent?: (ownerId: string, amount: number, propertyName: string, diceRoll?: number) => Promise<void>;
+  onOpenTradeWith?: (targetPlayerId: string, propertyId: string) => void;
 }
 
 export const QRScannerModal = ({
@@ -21,6 +24,8 @@ export const QRScannerModal = ({
   currentPlayer,
   initialRecipientId,
   onTransfer,
+  onPayRent,
+  onOpenTradeWith,
 }: QRScannerModalProps) => {
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -28,6 +33,9 @@ export const QRScannerModal = ({
   const [amount, setAmount] = useState<number>(50);
   const [reason, setReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'transfer' | 'properties'>('transfer');
+  const [utilityDiceProperty, setUtilityDiceProperty] = useState<string | null>(null);
+  const [diceRoll, setDiceRoll] = useState(7);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -35,11 +43,14 @@ export const QRScannerModal = ({
       stopScanner();
       setSelectedRecipientId('');
       setCameraError(null);
+      setActiveTab('transfer');
+      setUtilityDiceProperty(null);
       return;
     }
 
     if (initialRecipientId) {
       setSelectedRecipientId(initialRecipientId);
+      setActiveTab('transfer');
     } else {
       startScanner();
     }
@@ -176,22 +187,44 @@ export const QRScannerModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
-              {selectedRecipientId ? <Send className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+        <div className="p-4 border-b border-slate-800 flex flex-col gap-4 bg-slate-950/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                {selectedRecipientId ? <Send className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">{selectedRecipientId ? 'Transferir' : 'Escanear y Pagar'}</h3>
+                <p className="text-xs text-slate-400">{selectedRecipientId ? 'Enviá dinero a otro jugador' : 'Apuntá al QR del otro jugador'}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-white text-base">{selectedRecipientId ? 'Transferir' : 'Escanear y Pagar'}</h3>
-              <p className="text-xs text-slate-400">{selectedRecipientId ? 'Enviá dinero a otro jugador' : 'Apuntá al QR del otro jugador'}</p>
-            </div>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {initialRecipientId && selectedRecipientId && (
+            <div className="flex p-1 bg-slate-900 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setActiveTab('transfer')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+                  activeTab === 'transfer' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Transferir
+              </button>
+              <button
+                onClick={() => setActiveTab('properties')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+                  activeTab === 'properties' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Propiedades
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -246,7 +279,7 @@ export const QRScannerModal = ({
           )}
 
           {/* Transfer Form (when recipient is selected) */}
-          {selectedRecipientId && targetPlayer && (
+          {selectedRecipientId && targetPlayer && activeTab === 'transfer' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               {/* Recipient Badge */}
               <div className="p-4 bg-gradient-to-r from-slate-800 to-slate-850 rounded-2xl border border-slate-700 flex items-center justify-between">
@@ -359,6 +392,140 @@ export const QRScannerModal = ({
               </button>
             </div>
           )}
+
+          {/* Properties List */}
+          {selectedRecipientId && targetPlayer && activeTab === 'properties' && (() => {
+            const targetPlayerProperties = MONOPOLY_PROPERTIES.filter(
+              (p) => game.properties[p.id]?.ownerId === selectedRecipientId
+            );
+
+            if (targetPlayerProperties.length === 0) {
+              return (
+                <div className="py-8 text-center text-slate-400 text-sm">
+                  Este jugador no tiene propiedades.
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                {targetPlayerProperties.map(prop => {
+                  const state = game.properties[prop.id];
+                  const rentAmount = calculateRent(prop.id, game.properties, diceRoll);
+                  const isUtility = prop.group === 'utility';
+                  const isMortgaged = state.isMortgaged;
+                  const isUtilitySelected = utilityDiceProperty === prop.id;
+
+                  return (
+                    <div key={prop.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
+                      <div className="flex h-12">
+                        <div className="w-1.5 shrink-0" style={{ backgroundColor: prop.groupColor }} />
+                        <div className="flex-1 px-3 py-2 flex items-center justify-between min-w-0">
+                          <div className="truncate pr-2">
+                            <h4 className="text-sm font-bold text-white truncate flex items-center gap-2">
+                              {prop.name}
+                              {isMortgaged && <span className="text-[10px] font-normal text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-md">(Hipotecada)</span>}
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              {isMortgaged ? 'No genera alquiler' : isUtility ? 'Requiere dados' : `Alquiler: ${rentAmount} €`}
+                              {!isMortgaged && state.houses > 0 && state.houses < 5 && ` • ${state.houses} 🏠`}
+                              {!isMortgaged && state.houses === 5 && ` • 🏨`}
+                            </p>
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <button
+                              onClick={() => {
+                                if (onOpenTradeWith) {
+                                  onOpenTradeWith(selectedRecipientId, prop.id);
+                                }
+                              }}
+                              className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition"
+                              title="Trueque"
+                            >
+                              <ArrowLeftRight className="w-4 h-4" />
+                            </button>
+                            {isUtility && !isMortgaged ? (
+                              <button
+                                onClick={() => setUtilityDiceProperty(isUtilitySelected ? null : prop.id)}
+                                className="px-3 py-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 text-xs font-bold rounded-lg transition"
+                              >
+                                {isUtilitySelected ? 'Cancelar' : 'Tirar dados'}
+                              </button>
+                            ) : (
+                              <button
+                                disabled={isMortgaged || isSubmitting || rentAmount <= 0}
+                                onClick={async () => {
+                                  if (onPayRent) {
+                                    setIsSubmitting(true);
+                                    try {
+                                      await onPayRent(selectedRecipientId, rentAmount, prop.name);
+                                      playTransferSound();
+                                      triggerHaptic('success');
+                                      onClose();
+                                    } catch (err: unknown) {
+                                      const errorMsg = err instanceof Error ? err.message : String(err);
+                                      playBuzzerSound();
+                                      alert(errorMsg);
+                                    } finally {
+                                      setIsSubmitting(false);
+                                    }
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-xs font-bold rounded-lg transition"
+                              >
+                                Pagar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Utility Inline Dice Roll */}
+                      {isUtilitySelected && !isMortgaged && (
+                        <div className="px-3 py-3 bg-slate-900 border-t border-slate-700 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-400">Total de los dados:</span>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number" 
+                                min="2" max="12" 
+                                value={diceRoll} 
+                                onChange={(e) => setDiceRoll(Number(e.target.value))}
+                                className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-center text-sm font-bold text-white focus:border-amber-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            disabled={isSubmitting || diceRoll < 2 || diceRoll > 12}
+                            onClick={async () => {
+                               if (onPayRent) {
+                                 setIsSubmitting(true);
+                                 try {
+                                   await onPayRent(selectedRecipientId, rentAmount, prop.name, diceRoll);
+                                   playTransferSound();
+                                   triggerHaptic('success');
+                                   onClose();
+                                 } catch (err: unknown) {
+                                   const errorMsg = err instanceof Error ? err.message : String(err);
+                                   playBuzzerSound();
+                                   alert(errorMsg);
+                                 } finally {
+                                   setIsSubmitting(false);
+                                 }
+                               }
+                            }}
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black text-sm font-bold rounded-lg transition"
+                          >
+                            Pagar {rentAmount} €
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
