@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { Play, PlusCircle, LogIn, Database } from 'lucide-react';
+import { Play, PlusCircle, LogIn } from 'lucide-react';
 import type { Game, Player } from '../types/game';
 import { MONOPOLY_TOKENS } from '../types/game';
 import { GameService } from '../services/gameService';
-import { isSupabaseConfigured } from '../services/supabase';
 
 interface LobbyProps {
   onGameJoined: (game: Game, player: Player) => void;
-  onOpenGuide: () => void;
 }
 
-export const Lobby: React.FC<LobbyProps> = ({ onGameJoined, onOpenGuide }) => {
+export const Lobby: React.FC<LobbyProps> = ({ onGameJoined }) => {
   const [tab, setTab] = useState<'create' | 'join'>('create');
 
   // Create form
@@ -112,15 +110,6 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameJoined, onOpenGuide }) => {
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
         {/* Top Header */}
         <div className="p-6 bg-gradient-to-b from-amber-500/10 via-slate-900 to-slate-900 border-b border-slate-800/80 text-center relative">
-          <button
-            type="button"
-            onClick={onOpenGuide}
-            className="absolute top-4 right-4 p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-amber-400 rounded-xl text-xs flex items-center gap-1.5 transition"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Guía APIs</span>
-          </button>
-
           <div className="w-16 h-16 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-amber-500/20 mb-3 text-3xl">
             🎩
           </div>
@@ -129,16 +118,6 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameJoined, onOpenGuide }) => {
             Banca digital y transferencias instantáneas por QR
           </p>
 
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] bg-slate-800/70 border border-slate-700">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isSupabaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span className="text-slate-300">
-              {isSupabaseConfigured ? 'Multijugador Cloud Activo' : 'Modo Local / Sin Backend'}
-            </span>
-          </div>
         </div>
 
         {/* Tab switch */}

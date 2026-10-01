@@ -11,6 +11,9 @@ import {
   Check,
   Gavel,
   ArrowLeftRight,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { Game, Player, TradeOffer } from '../types/game';
 import {
@@ -60,9 +63,17 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
   onCreateTradeOffer,
   onAuctionProperty,
 }) => {
-  const [filterTab, setFilterTab] = useState<'all' | 'mine' | 'bank' | 'others'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'mine' | 'bank' | 'others'>(() => {
+    const hasMine = MONOPOLY_PROPERTIES.some(
+      (p) => game.properties?.[p.id]?.ownerId === currentPlayer.id
+    );
+    return hasMine ? 'mine' : 'all';
+  });
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedPropertyId, setExpandedPropertyId] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Bilateral Trade builder state
   const [tradingWithPlayer, setTradingWithPlayer] = useState<Player | null>(null);
@@ -266,371 +277,478 @@ export const PropertyManagerModal: React.FC<PropertyManagerModalProps> = ({
 
         {/* Filters and search */}
         <div className="p-3 bg-slate-950/40 border-b border-slate-800 space-y-2.5">
-          {/* Main filter tabs */}
-          <div className="grid grid-cols-4 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => setFilterTab('all')}
-              className={`py-1.5 rounded-lg transition ${
-                filterTab === 'all' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Todas
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('mine')}
-              className={`py-1.5 rounded-lg transition ${
-                filterTab === 'mine' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Mis Títulos
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('bank')}
-              className={`py-1.5 rounded-lg transition ${
-                filterTab === 'bank' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              En el Banco
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('others')}
-              className={`py-1.5 rounded-lg transition ${
-                filterTab === 'others'
-                  ? 'bg-amber-400 text-black'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              De otros
-            </button>
-          </div>
-
-          {/* Search input */}
+          {/* Main filter tabs and toggle */}
           <div className="flex gap-2 items-center">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar propiedad de España..."
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
-              />
-            </div>
-          </div>
-
-          {/* Color group chips */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {groupsList.map((g) => (
+            <div className="flex-1 grid grid-cols-4 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
               <button
-                key={g.id}
                 type="button"
-                onClick={() => setSelectedGroup(g.id)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition ${
-                  selectedGroup === g.id
-                    ? 'bg-slate-200 text-slate-900'
-                    : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+                onClick={() => setFilterTab('all')}
+                className={`py-1.5 rounded-lg transition ${
+                  filterTab === 'all' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {g.label}
+                Todas
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setFilterTab('mine')}
+                className={`py-1.5 rounded-lg transition ${
+                  filterTab === 'mine' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Mis Títulos
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab('bank')}
+                className={`py-1.5 rounded-lg transition ${
+                  filterTab === 'bank' ? 'bg-amber-400 text-black' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                En el Banco
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab('others')}
+                className={`py-1.5 rounded-lg transition ${
+                  filterTab === 'others'
+                    ? 'bg-amber-400 text-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                De otros
+              </button>
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`relative p-2 rounded-xl border transition flex items-center justify-center ${
+                showFilters || searchQuery || selectedGroup !== 'all'
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+              {(searchQuery || selectedGroup !== 'all') && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border border-slate-900" />
+              )}
+            </button>
+          </div>
+
+          {/* Hidden filters area */}
+          <div className={`space-y-2.5 overflow-hidden transition-all duration-300 ${showFilters ? 'max-h-[120px] opacity-100 mt-2' : 'max-h-0 opacity-0 m-0 border-0'}`}>
+            {/* Search input */}
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar propiedad de España..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Color group chips */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {groupsList.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setSelectedGroup(g.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition ${
+                    selectedGroup === g.id
+                      ? 'bg-slate-200 text-slate-900'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Property Cards List */}
         <div className="p-3 overflow-y-auto space-y-3 flex-1">
-          {filteredProperties.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-xs">
-              No se encontraron propiedades con ese filtro
-            </div>
-          ) : (
-            filteredProperties.map((prop) => {
-              const state = propertiesState[prop.id] || {
-                ownerId: null,
-                houses: 0,
-                isMortgaged: false,
-              };
-              const isMine = state.ownerId === currentPlayer.id;
-              const isBank = state.ownerId === null;
-              const ownerPlayer = state.ownerId ? game.players[state.ownerId] : null;
-              const currentRent = calculateRent(prop.id, propertiesState);
-              const hasMonopoly = state.ownerId
-                ? ownsCompleteGroup(propertiesState, state.ownerId, prop.group)
-                : false;
+          {(() => {
+            const groupsOrder = ['brown', 'light_blue', 'pink', 'orange', 'red', 'yellow', 'green', 'dark_blue', 'railroad', 'utility'];
+            const groupedFilteredProperties = groupsOrder.map(groupId => {
+              const props = filteredProperties.filter(p => p.group === groupId);
+              return { groupId, props };
+            }).filter(g => g.props.length > 0);
 
+            const toggleGroup = (groupId: string) => {
+              setCollapsedGroups(prev => {
+                const next = new Set(prev);
+                if (next.has(groupId)) next.delete(groupId);
+                else next.add(groupId);
+                return next;
+              });
+            };
+
+            const getGroupInfo = (groupId: string, props: PropertyDefinition[]) => {
+              const firstProp = props[0];
+              const groupName = firstProp?.groupName || groupId;
+              const color = firstProp?.groupColor || '#000';
+              const totalInGroup = MONOPOLY_PROPERTIES.filter(p => p.group === groupId).length;
+              const ownedByMe = MONOPOLY_PROPERTIES.filter(p => p.group === groupId && propertiesState[p.id]?.ownerId === currentPlayer.id).length;
+              return { groupName, color, ownedByMe, totalInGroup };
+            };
+
+            if (groupedFilteredProperties.length === 0) {
               return (
-                <div
-                  key={prop.id}
-                  className={`bg-slate-950/80 border rounded-2xl overflow-hidden transition shadow-sm ${
-                    isMine
-                      ? 'border-amber-500/50 ring-1 ring-amber-500/20'
-                      : state.isMortgaged
-                      ? 'border-red-900/60 opacity-80'
-                      : 'border-slate-800'
-                  }`}
-                >
-                  {/* Color Banner */}
-                  <div
-                    className="h-3 w-full"
-                    style={{ backgroundColor: prop.groupColor }}
-                  />
-
-                  <div className="p-3 space-y-3">
-                    {/* Top Row: Name, Group, Price & Ownership Badge */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="font-extrabold text-white text-sm leading-tight">
-                            {prop.name}
-                          </h4>
-                          {state.isMortgaged && (
-                            <span className="px-1.5 py-0.5 bg-red-950 text-red-400 border border-red-800 rounded text-[9px] font-bold uppercase">
-                              Hipotecada
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-semibold">
-                          {prop.groupName} • Precio: {prop.price} €
-                        </span>
-                      </div>
-
-                      {/* Owner pill */}
-                      <div className="text-right shrink-0">
-                        {isBank ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg text-[10px] font-bold">
-                            <Landmark className="w-3 h-3 text-slate-400" />
-                            Banco
-                          </span>
-                        ) : isMine ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-bold">
-                            <span>{currentPlayer.token}</span>
-                            Tuya
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-950/60 border border-blue-800 text-blue-300 rounded-lg text-[10px] font-bold">
-                            <span>{ownerPlayer?.token}</span>
-                            {ownerPlayer?.name || 'Otro'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Rent & Building indicators */}
-                    <div className="p-2 bg-slate-900/90 rounded-xl flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                          Alquiler actual:
-                        </span>
-                        <span
-                          className={`font-mono font-extrabold ${
-                            state.isMortgaged ? 'text-red-400 line-through' : 'text-emerald-400'
-                          }`}
-                        >
-                          {state.isMortgaged ? '0 € (Hipotecada)' : `${currentRent} €`}
-                        </span>
-                        {hasMonopoly && state.houses === 0 && (
-                          <span className="text-[9px] text-amber-300 block font-semibold">
-                            (Monopolio: x2 alquiler base)
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Houses / Hotel status */}
-                      {prop.houseCost > 0 && (
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                            Edificación:
-                          </span>
-                          <div className="flex items-center gap-1 font-bold text-xs">
-                            {state.houses === 0 ? (
-                              <span className="text-slate-500 text-[11px]">Sin edificar</span>
-                            ) : state.houses === 5 ? (
-                              <span className="text-red-400 flex items-center gap-1 text-xs">
-                                🏨 Hotel
-                              </span>
-                            ) : (
-                              <span className="text-emerald-400 flex items-center gap-1 text-xs">
-                                🏠 {state.houses} {state.houses === 1 ? 'Casa' : 'Casas'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ACTION BUTTONS (State-dependent) */}
-                    <div className="pt-1 flex flex-wrap gap-1.5">
-                      {/* Case 1: In the Bank -> Direct buy button + Auction (Banker) */}
-                      {isBank && (
-                        <div className="w-full space-y-1.5">
-                          <button
-                            type="button"
-                            disabled={isSubmitting || currentPlayer.balance < prop.price}
-                            onClick={() => handleBuyFromBank(prop.id)}
-                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
-                          >
-                            <Coins className="w-3.5 h-3.5" />
-                            <span>Comprar al Banco por {prop.price} €</span>
-                          </button>
-
-                          {(currentPlayer.isBanker || currentPlayer.id === game.bankerId) && (
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => {
-                                setAuctioningProperty(prop);
-                                const firstOther =
-                                  Object.values(game.players).find((p) => p.id !== currentPlayer.id)
-                                    ?.id || currentPlayer.id;
-                                setAuctionWinnerId(firstOther);
-                                setAuctionWinningBid(Math.floor(prop.price / 2));
-                              }}
-                              className="w-full py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
-                            >
-                              <Gavel className="w-3.5 h-3.5 text-blue-400" />
-                              <span>Subastar como Banquero</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Case 2: Owned by Me -> Manage buildings & mortgage */}
-                      {isMine && (
-                        <div className="w-full space-y-1.5">
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {/* Build / Sell House */}
-                            {prop.houseCost > 0 && (() => {
-                              const buildCheck = canBuildHouse(prop.id, propertiesState, currentPlayer.balance);
-                              const sellCheck = canSellHouse(prop.id, propertiesState);
-
-                              return (
-                                <>
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting || !buildCheck.allowed}
-                                    onClick={() => onBuildHouse(prop.id)}
-                                    title={buildCheck.reason || 'Construir casa/hotel'}
-                                    className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                                  >
-                                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span>
-                                      {state.houses === 4
-                                        ? `Hotel (${prop.houseCost} €)`
-                                        : `Casa (${prop.houseCost} €)`}
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting || !sellCheck.allowed}
-                                    onClick={() => onSellHouse(prop.id)}
-                                    title={sellCheck.reason || 'Vender construcción'}
-                                    className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                                  >
-                                    <Minus className="w-3.5 h-3.5 text-red-400" />
-                                    <span>Vender ({Math.floor(prop.houseCost / 2)} €)</span>
-                                  </button>
-                                </>
-                              );
-                            })()}
-
-                            {/* Mortgage / Unmortgage */}
-                            {!state.isMortgaged ? (
-                              <button
-                                type="button"
-                                disabled={isSubmitting || state.houses > 0}
-                                onClick={() => onMortgage(prop.id)}
-                                className="py-1.5 px-2 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 disabled:opacity-40 text-red-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                              >
-                                <Landmark className="w-3.5 h-3.5 text-red-400" />
-                                <span>Hipotecar (+{prop.mortgageValue} €)</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={
-                                  isSubmitting ||
-                                  currentPlayer.balance < Math.round(prop.mortgageValue * 1.1)
-                                }
-                                onClick={() => onUnmortgage(prop.id)}
-                                className="py-1.5 px-2 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/60 disabled:opacity-40 text-emerald-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                              >
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>
-                                  Deshipotecar (-{Math.round(prop.mortgageValue * 1.1)} €)
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Case 3: Owned by another player -> Pay rent or buy/trade */}
-                      {!isMine && !isBank && ownerPlayer && (
-                        <div className="w-full grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            disabled={
-                              isSubmitting ||
-                              state.isMortgaged ||
-                              (prop.group !== 'utility' && currentPlayer.balance < currentRent)
-                            }
-                            onClick={async () => {
-                              if (prop.group === 'utility') {
-                                setUtilityRentProperty({ prop, owner: ownerPlayer });
-                                setDiceRoll(7);
-                                setDiceRollResult(null);
-                                return;
-                              }
-                              try {
-                                setIsSubmitting(true);
-                                await onPayRent(ownerPlayer.id, currentRent, prop.name);
-                                playTransferSound();
-                                triggerHaptic('success');
-                              } catch (err: unknown) {
-                                playBuzzerSound();
-                                alert(err instanceof Error ? err.message : String(err));
-                              } finally {
-                                setIsSubmitting(false);
-                              }
-                            }}
-                            className="py-2 px-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                          >
-                            <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                            <span>
-                              {prop.group === 'utility'
-                                ? 'Pagar Alquiler (Dados)'
-                                : `Pagar Alquiler (${currentRent} €)`}
-                            </span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSubmitting || state.houses > 0}
-                            onClick={() => {
-                              setTradingWithPlayer(ownerPlayer);
-                              setRequestedPropertyIds([prop.id]);
-                              setOfferedPropertyIds([]);
-                              setOfferedCash(prop.price);
-                              setRequestedCash(0);
-                            }}
-                            className="py-2 px-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
-                          >
-                            <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
-                            <span>Trueque con {ownerPlayer.name}</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <div className="text-center py-12 text-slate-500 text-xs">
+                  No se encontraron propiedades con ese filtro
                 </div>
               );
-            })
-          )}
+            }
+
+            return groupedFilteredProperties.map(({ groupId, props }) => {
+              const { groupName, color, ownedByMe, totalInGroup } = getGroupInfo(groupId, props);
+              const isGroupCollapsed = collapsedGroups.has(groupId);
+
+              return (
+                <div key={groupId} className="space-y-3 mb-5 last:mb-0">
+                  {/* Group Header */}
+                  <div 
+                    className="flex items-center justify-between cursor-pointer py-1 px-1 select-none"
+                    onClick={() => toggleGroup(groupId)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-3.5 h-3.5 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                      <h4 className="font-bold text-white text-[13px]">
+                        {groupName} <span className="text-slate-400 font-normal">({ownedByMe}/{totalInGroup} tuyas)</span>
+                      </h4>
+                    </div>
+                    <div className="text-slate-400 p-1 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition">
+                      {isGroupCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </div>
+
+                  {/* Group Properties */}
+                  {!isGroupCollapsed && (
+                    <div className="space-y-2">
+                      {props.map(prop => {
+                        const state = propertiesState[prop.id] || {
+                          ownerId: null,
+                          houses: 0,
+                          isMortgaged: false,
+                        };
+                        const isMine = state.ownerId === currentPlayer.id;
+                        const isBank = state.ownerId === null;
+                        const ownerPlayer = state.ownerId ? game.players[state.ownerId] : null;
+                        const currentRent = calculateRent(prop.id, propertiesState);
+                        const hasMonopoly = state.ownerId
+                          ? ownsCompleteGroup(propertiesState, state.ownerId, prop.group)
+                          : false;
+                        const isExpanded = expandedPropertyId === prop.id;
+
+                        return (
+                          <div
+                            key={prop.id}
+                            className={`bg-slate-950/80 border rounded-2xl overflow-hidden transition shadow-sm ${
+                              isMine
+                                ? 'border-amber-500/50 ring-1 ring-amber-500/20'
+                                : state.isMortgaged
+                                ? 'border-red-900/60 opacity-80'
+                                : 'border-slate-800'
+                            }`}
+                          >
+                            {!isExpanded ? (
+                              <div 
+                                className="flex items-stretch min-h-[44px] cursor-pointer"
+                                onClick={() => setExpandedPropertyId(prop.id)}
+                              >
+                                <div className="w-1 shrink-0" style={{ backgroundColor: prop.groupColor }} />
+                                <div className="flex-1 px-3 py-2 flex items-center justify-between gap-2 overflow-hidden">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-bold text-white text-xs truncate">{prop.name}</span>
+                                    <div className="shrink-0">
+                                      {isBank ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded text-[9px] font-bold">
+                                          Banco
+                                        </span>
+                                      ) : isMine ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded text-[9px] font-bold">
+                                          Tuya
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-950/60 border border-blue-800 text-blue-300 rounded text-[9px] font-bold truncate max-w-[80px]">
+                                          {ownerPlayer?.name || 'Otro'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {prop.houseCost > 0 && state.houses > 0 && (
+                                      <span className="text-xs">{state.houses === 5 ? '🏨' : `🏠×${state.houses}`}</span>
+                                    )}
+                                    <span className={`font-mono font-bold text-xs ${state.isMortgaged ? 'text-red-400 line-through' : 'text-emerald-400'}`}>
+                                      {state.isMortgaged ? '0 €' : `${currentRent} €`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div
+                                  className="h-3 w-full cursor-pointer"
+                                  style={{ backgroundColor: prop.groupColor }}
+                                  onClick={() => setExpandedPropertyId(null)}
+                                />
+                                <div className="p-3 space-y-3">
+                                  {/* Top Row */}
+                                  <div className="flex items-start justify-between gap-2 cursor-pointer" onClick={() => setExpandedPropertyId(null)}>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <h4 className="font-extrabold text-white text-sm leading-tight">
+                                          {prop.name}
+                                        </h4>
+                                        {state.isMortgaged && (
+                                          <span className="px-1.5 py-0.5 bg-red-950 text-red-400 border border-red-800 rounded text-[9px] font-bold uppercase">
+                                            Hipotecada
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 font-semibold">
+                                        {prop.groupName} • Precio: {prop.price} €
+                                      </span>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      {isBank ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-300 rounded-lg text-[10px] font-bold">
+                                          <Landmark className="w-3 h-3 text-slate-400" />
+                                          Banco
+                                        </span>
+                                      ) : isMine ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-lg text-[10px] font-bold">
+                                          <span>{currentPlayer.token}</span>
+                                          Tuya
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-950/60 border border-blue-800 text-blue-300 rounded-lg text-[10px] font-bold">
+                                          <span>{ownerPlayer?.token}</span>
+                                          {ownerPlayer?.name || 'Otro'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Rent & Building indicators */}
+                                  <div className="p-2 bg-slate-900/90 rounded-xl flex items-center justify-between text-xs">
+                                    <div>
+                                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                                        Alquiler actual:
+                                      </span>
+                                      <span
+                                        className={`font-mono font-extrabold ${
+                                          state.isMortgaged ? 'text-red-400 line-through' : 'text-emerald-400'
+                                        }`}
+                                      >
+                                        {state.isMortgaged ? '0 € (Hipotecada)' : `${currentRent} €`}
+                                      </span>
+                                      {hasMonopoly && state.houses === 0 && (
+                                        <span className="text-[9px] text-amber-300 block font-semibold">
+                                          (Monopolio: x2 alquiler base)
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {prop.houseCost > 0 && (
+                                      <div className="text-right">
+                                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                                          Edificación:
+                                        </span>
+                                        <div className="flex items-center gap-1 font-bold text-xs">
+                                          {state.houses === 0 ? (
+                                            <span className="text-slate-500 text-[11px]">Sin edificar</span>
+                                          ) : state.houses === 5 ? (
+                                            <span className="text-red-400 flex items-center gap-1 text-xs">
+                                              🏨 Hotel
+                                            </span>
+                                          ) : (
+                                            <span className="text-emerald-400 flex items-center gap-1 text-xs">
+                                              🏠 {state.houses} {state.houses === 1 ? 'Casa' : 'Casas'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* ACTION BUTTONS */}
+                                  <div className="pt-1 flex flex-wrap gap-1.5">
+                                    {isBank && (
+                                      <div className="w-full space-y-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={isSubmitting || currentPlayer.balance < prop.price}
+                                          onClick={() => handleBuyFromBank(prop.id)}
+                                          className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
+                                        >
+                                          <Coins className="w-3.5 h-3.5" />
+                                          <span>Comprar al Banco por {prop.price} €</span>
+                                        </button>
+
+                                        {(currentPlayer.isBanker || currentPlayer.id === game.bankerId) && (
+                                          <button
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => {
+                                              setAuctioningProperty(prop);
+                                              const firstOther =
+                                                Object.values(game.players).find((p) => p.id !== currentPlayer.id)
+                                                  ?.id || currentPlayer.id;
+                                              setAuctionWinnerId(firstOther);
+                                              setAuctionWinningBid(Math.floor(prop.price / 2));
+                                            }}
+                                            className="w-full py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                                          >
+                                            <Gavel className="w-3.5 h-3.5 text-blue-400" />
+                                            <span>Subastar como Banquero</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {isMine && (
+                                      <div className="w-full space-y-1.5">
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                          {prop.houseCost > 0 && (() => {
+                                            const buildCheck = canBuildHouse(prop.id, propertiesState, currentPlayer.balance);
+                                            const sellCheck = canSellHouse(prop.id, propertiesState);
+
+                                            return (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  disabled={isSubmitting || !buildCheck.allowed}
+                                                  onClick={() => onBuildHouse(prop.id)}
+                                                  title={buildCheck.reason || 'Construir casa/hotel'}
+                                                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                                >
+                                                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                                                  <span>
+                                                    {state.houses === 4
+                                                      ? `Hotel (${prop.houseCost} €)`
+                                                      : `Casa (${prop.houseCost} €)`}
+                                                  </span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  disabled={isSubmitting || !sellCheck.allowed}
+                                                  onClick={() => onSellHouse(prop.id)}
+                                                  title={sellCheck.reason || 'Vender construcción'}
+                                                  className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                                >
+                                                  <Minus className="w-3.5 h-3.5 text-red-400" />
+                                                  <span>Vender ({Math.floor(prop.houseCost / 2)} €)</span>
+                                                </button>
+                                              </>
+                                            );
+                                          })()}
+
+                                          {!state.isMortgaged ? (
+                                            <button
+                                              type="button"
+                                              disabled={isSubmitting || state.houses > 0}
+                                              onClick={() => onMortgage(prop.id)}
+                                              className="py-1.5 px-2 bg-red-950/40 hover:bg-red-900/50 border border-red-800/60 disabled:opacity-40 text-red-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                            >
+                                              <Landmark className="w-3.5 h-3.5 text-red-400" />
+                                              <span>Hipotecar (+{prop.mortgageValue} €)</span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              disabled={
+                                                isSubmitting ||
+                                                currentPlayer.balance < Math.round(prop.mortgageValue * 1.1)
+                                              }
+                                              onClick={() => onUnmortgage(prop.id)}
+                                              className="py-1.5 px-2 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/60 disabled:opacity-40 text-emerald-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                            >
+                                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                              <span>
+                                                Deshipotecar (-{Math.round(prop.mortgageValue * 1.1)} €)
+                                              </span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {!isMine && !isBank && ownerPlayer && (
+                                      <div className="w-full grid grid-cols-2 gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            isSubmitting ||
+                                            state.isMortgaged ||
+                                            (prop.group !== 'utility' && currentPlayer.balance < currentRent)
+                                          }
+                                          onClick={async () => {
+                                            if (prop.group === 'utility') {
+                                              setUtilityRentProperty({ prop, owner: ownerPlayer });
+                                              setDiceRoll(7);
+                                              setDiceRollResult(null);
+                                              return;
+                                            }
+                                            try {
+                                              setIsSubmitting(true);
+                                              await onPayRent(ownerPlayer.id, currentRent, prop.name);
+                                              playTransferSound();
+                                              triggerHaptic('success');
+                                            } catch (err: unknown) {
+                                              playBuzzerSound();
+                                              alert(err instanceof Error ? err.message : String(err));
+                                            } finally {
+                                              setIsSubmitting(false);
+                                            }
+                                          }}
+                                          className="py-2 px-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                        >
+                                          <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+                                          <span>
+                                            {prop.group === 'utility'
+                                              ? 'Pagar Alquiler (Dados)'
+                                              : `Pagar Alquiler (${currentRent} €)`}
+                                          </span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          disabled={isSubmitting || state.houses > 0}
+                                          onClick={() => {
+                                            setTradingWithPlayer(ownerPlayer);
+                                            setRequestedPropertyIds([prop.id]);
+                                            setOfferedPropertyIds([]);
+                                            setOfferedCash(prop.price);
+                                            setRequestedCash(0);
+                                          }}
+                                          className="py-2 px-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition"
+                                        >
+                                          <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
+                                          <span>Trueque con {ownerPlayer.name}</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </div>
 
         {/* Bilateral Trade Builder Dialog */}

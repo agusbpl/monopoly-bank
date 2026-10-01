@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { X, QrCode, DollarSign, Check, Copy } from 'lucide-react';
+import { X, QrCode, DollarSign } from 'lucide-react';
 import type { Game, Player, QRPayload } from '../types/game';
 
 interface QRGeneratorModalProps {
@@ -18,7 +18,6 @@ export const QRGeneratorModal = ({
 }: QRGeneratorModalProps) => {
   const [requestedAmount, setRequestedAmount] = useState<number | ''>('');
   const [reason, setReason] = useState<string>('');
-  const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
@@ -36,12 +35,6 @@ export const QRGeneratorModal = ({
 
   const qrValue = JSON.stringify(payload);
   const quickAmounts = [50, 100, 150, 200, 500];
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(qrValue);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -176,25 +169,8 @@ export const QRGeneratorModal = ({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleCopyLink}
-              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>¡Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-slate-400" />
-                  <span>Copiar payload</span>
-                </>
-              )}
-            </button>
-            <button
-              type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold rounded-xl transition"
+              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold rounded-xl transition"
             >
               Listo
             </button>

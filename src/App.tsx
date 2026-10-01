@@ -9,7 +9,6 @@ import { QRGeneratorModal } from './components/QRGeneratorModal';
 import { PropertyManagerModal } from './components/PropertyManagerModal';
 import { BankModal } from './components/BankModal';
 import { TransactionHistoryModal } from './components/TransactionHistoryModal';
-import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { IncomingTradeModal } from './components/IncomingTradeModal';
 import { playCoinsSound, triggerHaptic } from './utils/sound';
 
@@ -26,7 +25,6 @@ export function App() {
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isBankOpen, setIsBankOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Keep ref to previous balance for sound detection on receiving money
   const prevBalanceRef = useRef<number | null>(null);
@@ -260,7 +258,7 @@ export function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
       {/* View routing: Lobby vs Game Dashboard */}
       {!game || !currentPlayer ? (
-        <Lobby onGameJoined={handleGameJoined} onOpenGuide={() => setIsGuideOpen(true)} />
+        <Lobby onGameJoined={handleGameJoined} />
       ) : (
         <>
           <Navbar
@@ -269,7 +267,6 @@ export function App() {
             onOpenProperties={() => setIsPropertiesOpen(true)}
             onOpenHistory={() => setIsHistoryOpen(true)}
             onOpenBank={() => setIsBankOpen(true)}
-            onOpenGuide={() => setIsGuideOpen(true)}
             onLeaveGame={handleLeaveGame}
           />
 
@@ -347,12 +344,6 @@ export function App() {
           />
         </>
       )}
-
-      {/* Guide Modal (accessible from Lobby and Navbar) */}
-      <SupabaseGuideModal
-        isOpen={isGuideOpen}
-        onClose={() => setIsGuideOpen(false)}
-      />
     </div>
   );
 }

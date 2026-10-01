@@ -28,18 +28,12 @@ export const BankModal = ({
     { label: 'Fianza Cárcel (50 €)', amount: 50, reason: 'Fianza para salir de la cárcel' },
     { label: 'Impuesto de Lujo (100 €)', amount: 100, reason: 'Impuesto de Lujo' },
     { label: 'Impuesto Capital (200 €)', amount: 200, reason: 'Impuesto sobre el Capital' },
-    { label: 'Casa Marrón/Celeste (50 €)', amount: 50, reason: 'Compra de 1 casa' },
-    { label: 'Casa Rosa/Naranja (100 €)', amount: 100, reason: 'Compra de 1 casa' },
-    { label: 'Casa Rojo/Amarillo (150 €)', amount: 150, reason: 'Compra de 1 casa' },
-    { label: 'Casa Verde/Azul (200 €)', amount: 200, reason: 'Compra de 1 casa' },
   ];
 
   const quickCollectRules = [
-    { label: 'Cobro Salida (200 €)', amount: 200, reason: 'Paso por la Salida' },
     { label: 'Premio Belleza (10 €)', amount: 10, reason: 'Premio de belleza (Caja Comunidad)' },
     { label: 'Devolución Hacienda (20 €)', amount: 20, reason: 'Devolución de impuestos' },
     { label: 'Error Banca (200 €)', amount: 200, reason: 'Error de la banca a tu favor' },
-    { label: 'Cobro Hipoteca (100 €)', amount: 100, reason: 'Cobro por hipoteca de estación' },
   ];
 
   const handleSubmit = async () => {

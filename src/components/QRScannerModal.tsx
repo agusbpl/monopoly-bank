@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle, ArrowRight } from 'lucide-react';
+import { X, Camera, AlertCircle, ArrowRight, Send } from 'lucide-react';
 import type { Game, Player, QRPayload } from '../types/game';
 import { playTransferSound, playBuzzerSound, triggerHaptic } from '../utils/sound';
 import confetti from 'canvas-confetti';
@@ -179,11 +179,11 @@ export const QRScannerModal = ({
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
-              <Camera className="w-5 h-5" />
+              {selectedRecipientId ? <Send className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="font-bold text-white text-base">Escanear y Pagar</h3>
-              <p className="text-xs text-slate-400">Apuntá al QR del otro jugador</p>
+              <h3 className="font-bold text-white text-base">{selectedRecipientId ? 'Transferir' : 'Escanear y Pagar'}</h3>
+              <p className="text-xs text-slate-400">{selectedRecipientId ? 'Enviá dinero a otro jugador' : 'Apuntá al QR del otro jugador'}</p>
             </div>
           </div>
           <button

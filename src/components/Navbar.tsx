@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Landmark, History, LogOut, Copy, Check, Database, Building2 } from 'lucide-react';
+import { Landmark, History, LogOut, Copy, Check, Building2 } from 'lucide-react';
 import type { Game, Player } from '../types/game';
 
 interface NavbarProps {
@@ -8,7 +8,6 @@ interface NavbarProps {
   onOpenProperties: () => void;
   onOpenHistory: () => void;
   onOpenBank: () => void;
-  onOpenGuide: () => void;
   onLeaveGame: () => void;
 }
 
@@ -18,7 +17,6 @@ export const Navbar = ({
   onOpenProperties,
   onOpenHistory,
   onOpenBank,
-  onOpenGuide,
   onLeaveGame,
 }: NavbarProps) => {
   const [copied, setCopied] = useState(false);
@@ -98,15 +96,6 @@ export const Navbar = ({
                 {game.transactions.length > 99 ? '99+' : game.transactions.length}
               </span>
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenGuide}
-            title="Configuración de APIs y Base de Datos"
-            className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-emerald-400 transition"
-          >
-            <Database className="w-4 h-4" />
           </button>
 
           <button
